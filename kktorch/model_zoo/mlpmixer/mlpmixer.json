@@ -1,0 +1,51 @@
+{
+    "name": "mlpmixer",
+    "user_parameters": {
+        "___pixel_h": 16,
+        "___pixel_w": 16,
+        "___n_rgb": 3,
+        "___n_patch_h": 14,
+        "___n_patch_w": 14,
+        "___n_patch": "___n_patch_h * ___n_patch_w",
+        "___n_channel": "___pixel_h * ___pixel_w * ___n_rgb",
+        "___n_layers": 2,
+        "___n_classes": 3
+    },
+    "network": [
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "___n_rgb", "___pixel_h * ___n_patch_h", "___pixel_w * ___n_patch_w"]
+        },
+        {
+            "class": "ConfigModule",
+            "args": "divide_patch.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath"
+            }
+        },
+        {
+            "class": "Linear",
+            "args": ["___pixel_h * ___pixel_w * ___n_rgb", "___n_channel"]
+        },
+        {
+            "class": "RepeatModule",
+            "args": "mixer_layer.json",
+            "kwargs": {
+                "in_features": "___n_channel",
+                "dir_base_path": "__dirpath",
+                "n_layers": "___n_layers"
+            }
+        },
+        {
+            "class": "AggregateInput",
+            "args": "mean",
+            "kwargs": {
+                "dim": 1
+            }
+        },
+        {
+            "class": "Linear",
+            "args": ["___n_channel", "___n_classes"]
+        }
+    ]
+}

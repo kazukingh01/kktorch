@@ -1,0 +1,118 @@
+{
+    "name": "layer",
+    "in_features": 128,
+    "network": [
+        {
+            "class": "ParameterModule",
+            "args": ["__before", "___n_trees", "___depth"],
+            "kwargs": {
+                "name": "param_select_features",
+                "init_type": "rand",
+                "init_timing": "before",
+                "output_type": "parallel"
+            }
+        },
+        {
+            "class": "SplitModule",
+            "args": [
+                {
+                    "name": "identity",
+                    "network": [{"class": "Identity"}]
+                }, 
+                {
+                    "name": "entmax",
+                    "network": [{"class": "Entmax15", "kwargs": {"dim": 0}}]
+                }
+            ],
+            "kwargs": {
+                "is_call_first": false
+            }
+        },
+        {
+            "class": "EinsumInput",
+            "args": "ab,bcd->acd"
+        },
+        {
+            "class": "ParameterModule",
+            "args": ["___n_trees", "___depth"],
+            "kwargs": {
+                "name": "param_threshold",
+                "init_type": "randn",
+                "init_timing": "before",
+                "output_type": "minus"
+            }
+        },
+        {
+            "class": "ParameterModule",
+            "args": ["___n_trees", "___depth"],
+            "kwargs": {
+                "name": "param_scale",
+                "init_type": "randn",
+                "init_timing": "before",
+                "output_type": "input * torch.exp(param)"
+            }
+        },
+        {
+            "class": "Entmoid15"
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "___n_trees", "___depth", 1]
+        },
+        {
+            "class": "EvalModule",
+            "args": "[1 - input, input]"
+        },
+        {
+            "class": "CombineListInput",
+            "args": "cat",
+            "kwargs": {
+                "dim": -1
+            }
+        },
+        {
+            "class": "ParameterModule",
+            "args": "util.create_allpattern(___depth)",
+            "kwargs": {
+                "name": "param_select_prob",
+                "init_type": "eval",
+                "init_timing": "before",
+                "output_type": "parallel",
+                "requires_grad": false
+            }
+        },
+        {
+            "class": "EinsumInput",
+            "args": "btdp,dlp->btld"
+        },
+        {
+            "class": "AggregateInput",
+            "args": "prod",
+            "kwargs": {
+                "dim": -1
+            }
+        },
+        {
+            "class": "ParameterModule",
+            "args": ["___n_trees", "2 ** ___depth", "___n_classes"],
+            "kwargs": {
+                "name": "prob_distribution",
+                "init_type": "randn",
+                "init_timing": "before",
+                "output_type": "parallel",
+                "requires_grad": true
+            }
+        },
+        {
+            "class": "EinsumInput",
+            "args": "btl,tlc->btc"
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "___n_trees * ___n_classes"],
+            "kwargs": {
+                "name": "next_layer_input"
+            }
+        }
+    ]
+}

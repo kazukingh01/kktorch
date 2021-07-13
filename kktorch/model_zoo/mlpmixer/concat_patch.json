@@ -1,0 +1,46 @@
+{
+    "name": "concat_patch",
+    "user_parameters": {
+        "___pixel_h": 16,
+        "___pixel_w": 16,
+        "___n_patch_h": 14,
+        "___n_patch_w": 14,
+        "___n_rgb": 3 
+    },
+    "network": [
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "b", "___n_rgb", "___pixel_h", "___pixel_w"]
+        },
+        {
+            "class": "EinsumInput",
+            "args": "bpchw->pbchw"
+        },
+        {
+            "class": "EvalModule",
+            "args": "[[input[___n_patch_w * j + i] for i in range(___n_patch_w)] for j in range(___n_patch_h)]"
+        },
+        {
+            "class": "ApplyModule",
+            "args": {
+                "name": "concat_w",
+                "network": [
+                    {
+                        "class": "CombineListInput",
+                        "args": "cat",
+                        "kwargs": {
+                            "dim": 3
+                        }
+                    }          
+                ]
+            }
+        },
+        {
+            "class": "CombineListInput",
+            "args": "cat",
+            "kwargs": {
+                "dim": 2
+            }
+        }
+    ]
+}

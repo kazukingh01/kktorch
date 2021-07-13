@@ -1,0 +1,54 @@
+{
+    "name": "resblock",
+    "in_features": 128,
+    "user_parameters": {
+        "___p": 0.1
+    },
+    "network": [
+        {
+            "class": "SkipConnection",
+            "args": {
+                "name": "resblock",
+                "network": [
+                    {
+                        "class": "Linear",
+                        "args": ["__before", "__before // 2"]
+                    },
+                    {
+                        "class": "BatchNorm1d",
+                        "args": "__before"
+                    },
+                    {
+                        "class": "GELU"
+                    },
+                    {
+                        "class": "Dropout",
+                        "kwargs":{
+                            "p": "___p"
+                        }
+                    },
+                    {
+                        "class": "Linear",
+                        "args": ["__before", "__before * 2"]
+                    }
+                ]
+            },
+            "kwargs": {
+                "in_features": "__before"
+            }
+        },
+        {
+            "class": "BatchNorm1d",
+            "args": "__before"
+        },
+        {
+            "class": "GELU"
+        },
+        {
+            "class": "Dropout",
+            "kwargs":{
+                "p": "___p"
+            }
+        }
+    ]
+}

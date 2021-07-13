@@ -1,0 +1,66 @@
+{
+    "name": "mixer_layer",
+    "in_features": 768,
+    "user_parameters": {
+        "___n_patch": 196
+    },
+    "network": [
+        {
+            "class": "SkipConnection",
+            "args": {
+                "name": "mlp1",
+                "network": [
+                    {
+                        "class": "LayerNorm",
+                        "args": "in_features"
+                    },
+                    {
+                        "class": "EinsumInput",
+                        "args": "abc->acb"
+                    },
+                    {
+                        "class": "ConfigModule",
+                        "args": "mlp.json",
+                        "kwargs": {
+                            "dir_base_path": "__dirpath",
+                            "in_features": "___n_patch"
+                        }
+                    },
+                    {
+                        "class": "EinsumInput",
+                        "args": "abc->acb"
+                    }
+                ]
+            },
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "in_features"
+            }
+        },
+        {
+            "class": "SkipConnection",
+            "args": {
+                "name": "mlp2",
+                "network": [
+                    {
+                        "class": "LayerNorm",
+                        "args": "in_features"
+                    },
+                    {
+                        "class": "ConfigModule",
+                        "args": "mlp.json",
+                        "kwargs": {
+                            "dir_base_path": "__dirpath",
+                            "in_features": "in_features"
+                        }
+                    }
+                ]
+            },
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "in_features"
+            }
+        }
+    ],
+    "out_features": "in_features"
+}

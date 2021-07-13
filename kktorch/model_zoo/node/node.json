@@ -1,0 +1,46 @@
+{
+    "name": "node",
+    "in_features": 28,
+    "user_parameters": {
+        "___in_features": 28,
+        "___n_trees": 128,
+        "___depth": 4,
+        "___n_classes": 2
+    },
+    "network": [
+        {
+            "class": "ConfigModule",
+            "args": "middle_layer.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before"
+            }
+        },
+        {
+            "class": "ConfigModule",
+            "args": "middle_layer.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before + ___n_trees * ___n_classes"
+            }
+        },
+        {
+            "class": "SelectIndexTensorInput",
+            "args": 2,
+            "kwargs": {
+                "dim2": "___in_features:None"
+            }
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "___n_trees * 2", "___n_classes"]
+        },
+        {
+            "class": "AggregateInput",
+            "args": "mean",
+            "kwargs": {
+                "dim": 1
+            }
+        }
+    ]
+}

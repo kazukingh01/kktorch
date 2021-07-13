@@ -1,0 +1,63 @@
+{
+    "name": "divide_patch",
+    "user_parameters": {
+        "___pixel_h": 16,
+        "___pixel_w": 16
+    },
+    "network": [
+        {
+            "class": "AggregateInput",
+            "args": "split",
+            "kwargs": {
+                "split_size_or_sections": "___pixel_h",
+                "dim": 2
+            }
+        },
+        {
+            "class": "EvalModule",
+            "args": "list(input)"
+        },
+        {
+            "class": "ApplyModule",
+            "args": {
+                "name": "split",
+                "network": [
+                    {
+                        "class": "AggregateInput",
+                        "args": "split",
+                        "kwargs": {
+                            "split_size_or_sections": "___pixel_w",
+                            "dim": 3
+                        }
+                    },
+                    {
+                        "class": "EvalModule",
+                        "args": "list(input)"
+                    }            
+                ]
+            }
+        },
+        {
+            "class": "EvalModule",
+            "args": "sum(input, [])"
+        },
+        {
+            "class": "AggregateInput",
+            "args": "stack",
+            "kwargs": {
+                "dim": 0
+            }
+        },
+        {
+            "class": "EinsumInput",
+            "args": "pbchw->bpchw"
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "b", "c * d * e"],
+            "kwargs": {
+                "name": "finish_divide_patch"
+            }
+        }
+    ]
+}

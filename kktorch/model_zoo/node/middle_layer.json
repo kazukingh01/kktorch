@@ -1,0 +1,31 @@
+{
+    "name": "middle",
+    "in_features": 128,
+    "network": [
+        {
+            "class": "SplitOutput",
+            "args": 2
+        },
+        {
+            "class": "SplitModule",
+            "args": [
+                {
+                    "name": "identity",
+                    "network": [{"class": "Identity"}]
+                },
+                "odst.json"
+            ],
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before"
+            }
+        },
+        {
+            "class": "CombineListInput",
+            "args": "cat",
+            "kwargs": {
+                "dim": -1
+            }
+        }
+    ]
+}
