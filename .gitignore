@@ -130,4 +130,4 @@ dmypy.json
 .pyre/
 
 # Others
-*ubyte*
+*MNIST*

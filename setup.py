@@ -51,11 +51,12 @@ setup(
         'tensorboard==2.5.0',
         'tensorboard-data-server==0.6.1',
         'tensorboard-plugin-wit==1.8.0',
+        'torch==1.8.1+cu111',
         'torch-optimizer==0.1.0',
-        'torchvision==0.10.0',
+        'torchvision==0.9.1+cu111',
         'typing-extensions==3.10.0.0',
         'urllib3==1.26.6',
-        'Werkzeug==2.0.1',
+        'Werkzeug==2.0.1'
     ],
     python_requires='>=3.7'
 )
