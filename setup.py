@@ -38,7 +38,7 @@ setup(
         'more-itertools==8.8.0',
         'numpy==1.21.0',
         'oauthlib==3.1.1',
-        'opencv-python==4.5.3.56'
+        'opencv-python==4.5.3.56',
         'Pillow==8.3.1',
         'protobuf==3.17.3',
         'pyasn1==0.4.8',
