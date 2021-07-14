@@ -79,4 +79,4 @@ class MNISTDataLoader(BaseDataLoader):
         transform = transform if isinstance(transform, list) else []
         transform = transforms.Compose(transform)
         dataset   = torchvision.datasets.MNIST(root=root, train=train, download=download, transform=transform)
-        super().__init__(dataset, dtype_data=torch.float32, dtype_target=dtype_target, **kwargs)
+        super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)

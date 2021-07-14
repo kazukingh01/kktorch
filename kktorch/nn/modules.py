@@ -1,4 +1,3 @@
-import copy, time
 import numpy as np
 import torch
 from torch import nn
@@ -21,6 +20,7 @@ __all__ = [
     "ParameterModule",
     "AggregateInput",
     "EvalModule",
+    "TimmModule",
 ]
 
 
@@ -271,3 +271,40 @@ class EvalModule(BaseModule):
     def forward(self, input: torch.Tensor):
         output = eval(self.eval, {"input": input})
         return super().forward(output)
+
+
+class TimmModule(BaseModule):
+    def __init__(self, name_model: str, pretrained: bool=True, name_module: str=None, dict_freeze: dict=None):
+        """
+        Params::
+            name_model: see: https://github.com/rwightman/pytorch-image-models/tree/master/timm/models
+            pretrained: If true, load pretrained weight
+            name_module: If string, You can use a module that is part of a model named "name_module"
+            dict_freeze:
+                ex) {"Linear": 10}, Freeze all modules until "Linear" is encountered 10 times.
+        """
+        import timm
+        super().__init__(name=f"{self.__class__.__name__}({name_model})")
+        self.name_model  = name_model
+        self.dict_freeze = dict_freeze if dict_freeze is not None else {}
+        self.model       = timm.create_model(name_model, pretrained=pretrained)
+        self.model       = self.model if name_module is None else getattr(self.model, name_module)
+        self.freeze()
+    def extra_repr(self):
+        return f'name_model={self.name_model}'
+    def forward(self, input: torch.Tensor):
+        output = self.model(input)
+        return super().forward(output)
+    def freeze(self):
+        dictwk = {}
+        for module in self.model.modules():
+            name = module.__class__.__name__
+            if dictwk.get(name) is None: dictwk[name] = 1
+            else: dictwk[name] += 1
+            for x, y in self.dict_freeze.items():
+                if dictwk.get(x) is None or dictwk.get(x) <= y:
+                    if hasattr(module, "weight") and module.weight is not None:
+                        module.weight.requires_grad = False
+                    if hasattr(module, "bias")   and module.bias   is not None:
+                        module.bias.  requires_grad = False
+        print(dictwk)

@@ -1,0 +1,21 @@
+{
+    "name": "timm",
+    "user_parameters": {
+        "___n_classes": 3,
+        "___dict_freeze": {"Sequential": 4}
+    },
+    "network": [
+        {
+            "class": "TimmModule",
+            "args": "efficientnet_b1",
+            "kwargs": {
+                "pretrained": true,
+                "dict_freeze": "___dict_freeze"
+            }
+        },
+        {
+            "class": "Linear",
+            "args": [1000, "___n_classes"]
+        }
+   ]
+}
