@@ -1,11 +1,13 @@
 import json
+import pandas as pd
 import numpy as np
 import cv2
-from typing import List, Tuple
+from typing import List, Union
 from PIL import Image
+from timm import data
 from torch.utils.data import Dataset
 
-from kktorch.util.com import correct_dirpath
+from kktorch.util.com import correct_dirpath, check_type_list
 import kktorch.util.image as proc_image
 
 
@@ -46,3 +48,15 @@ class ImageDataset(Dataset):
         for proc in self.transforms: img = proc(img)
         labels = self.json_data[index][self.str_label]
         return img, labels
+
+
+class DataframeDataset(Dataset):
+    def __init__(self, df: pd.DataFrame, columns: Union[List[str], List[int]]):
+        assert isinstance(df, pd.DataFrame)
+        assert check_type_list(columns, [int, str])
+        self.columns = columns
+        self.ndf     = df.iloc[:, self.columns].values.copy() if check_type_list(columns, [int]) else df.loc[:, self.columns].values.copy()
+    def __getitem__(self, index: int):
+        return tuple(self.ndf[index])
+    def __len__(self):
+        return self.ndf.shape[0]

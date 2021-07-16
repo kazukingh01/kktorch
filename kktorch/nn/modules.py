@@ -273,12 +273,10 @@ class EvalModule(BaseModule):
         return super().forward(output)
 
 
-class TimmModule(BaseModule):
-    def __init__(self, name_model: str, pretrained: bool=True, name_module: str=None, dict_freeze: dict=None):
+class PretrainedModule(BaseModule):
+    def __init__(self, model: nn.Module, name_model: str, name_module: str=None, dict_freeze: dict=None):
         """
         Params::
-            name_model: see: https://github.com/rwightman/pytorch-image-models/tree/master/timm/models
-            pretrained: If true, load pretrained weight
             name_module: If string, You can use a module that is part of a model named "name_module"
             dict_freeze:
                 ex) {"Linear": 10}, Freeze all modules until "Linear" is encountered 10 times.
@@ -287,8 +285,7 @@ class TimmModule(BaseModule):
         super().__init__(name=f"{self.__class__.__name__}({name_model})")
         self.name_model  = name_model
         self.dict_freeze = dict_freeze if dict_freeze is not None else {}
-        self.model       = timm.create_model(name_model, pretrained=pretrained)
-        self.model       = self.model if name_module is None else getattr(self.model, name_module)
+        self.model       = model if name_module is None else getattr(model, name_module)
         self.freeze()
     def extra_repr(self):
         return f'name_model={self.name_model}'
@@ -308,3 +305,30 @@ class TimmModule(BaseModule):
                     if hasattr(module, "bias")   and module.bias   is not None:
                         module.bias.  requires_grad = False
         print(dictwk)
+
+
+class TimmModule(PretrainedModule):
+    def __init__(self, name_model: str, pretrained: bool=True, **kwargs):
+        """
+        Params::
+            name_model: see: https://github.com/rwightman/pytorch-image-models/tree/master/timm/models
+            pretrained: If true, load pretrained weight
+        """
+        import timm
+        model = timm.create_model(name_model, pretrained=pretrained)
+        super().__init__(model, name_model, **kwargs)
+
+
+class HuggingfaceModule(PretrainedModule):
+    def __init__(self, name_model: str, **kwargs):
+        """
+        Params::
+            name_model: see: https://huggingface.co/models
+        """
+        from transformers import AutoTokenizer, AutoModel
+        model = AutoModel.from_pretrained(name_model)
+        super().__init__(model, name_model, **kwargs)
+        self.tokenizer = AutoTokenizer.from_pretrained(name_model)
+    def forward(self, input: dict):
+        output = self.model(**input)
+        return super().forward(output)
