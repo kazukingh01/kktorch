@@ -20,7 +20,9 @@ __all__ = [
     "ParameterModule",
     "AggregateInput",
     "EvalModule",
+    "PretrainedModule",
     "TimmModule",
+    "HuggingfaceModule",
 ]
 
 
@@ -281,7 +283,6 @@ class PretrainedModule(BaseModule):
             dict_freeze:
                 ex) {"Linear": 10}, Freeze all modules until "Linear" is encountered 10 times.
         """
-        import timm
         super().__init__(name=f"{self.__class__.__name__}({name_model})")
         self.name_model  = name_model
         self.dict_freeze = dict_freeze if dict_freeze is not None else {}

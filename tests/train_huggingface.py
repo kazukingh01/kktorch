@@ -2,41 +2,21 @@ import torch, kktorch
 from kktorch.trainer.base import Trainer
 from kktorch.data.dataloader import NewsPaperDataLoader
 from kktorch.nn.configmod import ConfigModule
-from torchvision import transforms
-from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 
 if __name__ == "__main__":
-    raise
-
-    dataloader_train = NewsPaperDataLoader()
     # config file
-    fjson = "../kktorch/model_zoo/timm/timm.json"
+    fjson = "../kktorch/model_zoo/huggingface/huggingface.json"
 
     # load config file and create network
-    network = ConfigModule(
-        fjson,
-        ## You can override the config settings.
-        user_parameters={
-            "___n_classes": 10
-        },
-    )
+    network = ConfigModule(fjson)
 
     # dataloader
-    dataloader_train = MNISTDataLoader(
-        root='./data', train=True, download=True, batch_size=64, shuffle=True,
-        transform=[
-            transforms.ToTensor(), transforms.Resize([256,256]), transforms.Lambda(lambda x: torch.cat([x, x, x], 0)),
-            transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
-        ], num_workers=4
-    )
-    dataloader_valid = MNISTDataLoader(
-        root='./data', train=False, download=True, batch_size=64, shuffle=False,
-        transform=[
-            transforms.ToTensor(), transforms.Resize([256,256]), transforms.Lambda(lambda x: torch.cat([x, x, x], 0)),
-            transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
-        ], num_workers=4
-    )
+    dataloader_train = NewsPaperDataLoader(root='./data', train=True,  download=True, batch_size=64, shuffle=True,  num_workers=4)
+    dataloader_test  = NewsPaperDataLoader(root='./data', train=False, download=True, batch_size=64, shuffle=False, num_workers=4)
+    dataloader_train.dataset.set_tokenizer(network.tokenizer)
+    dataloader_test. dataset.set_tokenizer(network.tokenizer)
+    raise
 
     # trainer
     trainer = Trainer(

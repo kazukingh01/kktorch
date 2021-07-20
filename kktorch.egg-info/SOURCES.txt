@@ -18,6 +18,7 @@ kktorch/trainer/__init__.py
 kktorch/trainer/base.py
 kktorch/util/__init__.py
 kktorch/util/com.py
+kktorch/util/files.py
 kktorch/util/logger.py
 kktorch/util/tensor.py
 kktorch/util/image/__init__.py

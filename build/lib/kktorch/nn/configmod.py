@@ -121,10 +121,12 @@ class ConfigModule(nn.Module):
                 if isinstance(module, nn.MiddleReleaseOutput):
                     if self.is_middle_release: raise("MiddleReleaseOutput can only be used once.")
                     self.is_middle_release = True
+                if isinstance(module, nn.HuggingfaceModule):
+                    self.tokenizer = module.tokenizer
     
-    def forward(self, input: Union[torch.Tensor, List[torch.Tensor]]):
+    def forward(self, input: Union[torch.Tensor, List[torch.Tensor], dict]):
         if self.is_debug: t0 = time.perf_counter()
-        output = input.clone() if self.is_call_first else input
+        output = input.clone() if self.is_call_first and isinstance(input, torch.Tensor) else input
         if self.is_middle_release:
             # We don't want to do the "isinstance" process multiple times, so we'll separate the process.
             for module in getattr(self, self.name):
