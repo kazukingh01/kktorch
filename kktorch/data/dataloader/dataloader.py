@@ -35,18 +35,22 @@ class BaseDataLoader(DataLoader):
                 self.to_tensor_data = lambda x: {y:torch.Tensor(z) for y, z in x.items()}
                 if isinstance(self.dtype_data, dict): self.to_dtype_data = lambda x, y: {a:b.to(y[a]) for a, b in x.items()}
                 else:                                 self.to_dtype_data = lambda x, y: {a:b.to(y)    for a, b in x.items()}
-            elif   check_type_list(input, [torch.Tensor]):
+            elif check_type_list(input, [torch.Tensor]):
                 self.to_tensor_data = torch.stack
-            else:
+            elif check_type_list(input, [int, float], [int, float], [int, float], [int, float]):
                 self.to_tensor_data = torch.Tensor
+            else:
+                raise Exception(f"Not match input.\ntype: {type(input)}\ninput: {input}")
             if isinstance(label, dict):
                 self.to_tensor_label = lambda x: {y:torch.Tensor(z) for y, z in x.items()}
                 if isinstance(self.dtype_target, dict): self.to_dtype_label = lambda x, y: {a:b.to(y[a]) for a, b in x.items()}
                 else:                                   self.to_dtype_label = lambda x, y: {a:b.to(y)    for a, b in x.items()}
             elif check_type_list(label, [torch.Tensor]):
                 self.to_tensor_label = torch.stack
-            else:
+            elif check_type_list(label, [int, float], [int, float], [int, float], [int, float]):
                 self.to_tensor_label = torch.Tensor
+            else:
+                raise Exception(f"Not match label.\ntype: {type(label)}\ninput: {label}")
             self.is_check = False
         input = self.to_tensor_data(input)
         label = self.to_tensor_label(label)
@@ -61,14 +65,17 @@ class TextDataLoader(BaseDataLoader):
     def __init__(
         self, dataset: Dataset, dtype_data: torch.dtype, dtype_target: torch.dtype, 
         tokenizer: Callable, tokenizer_params_input: dict={}, tokenizer_params_label: dict={}, 
-        preprocs_input: List[Callable]=None, aftprocs_input: List[Callable]=None,
-        preprocs_label: List[Callable]=None, aftprocs_label: List[Callable]=None,
+        preprocs: List[Callable]=None, aftprocs: List[Callable]=None,
         **kwargs
     ):
         """
         Usually, it needs to be converted to Tensor in Dataset.
         In the case of Text, since it is more efficient to tokenize a list of sentences together, 
         DataLoader converts them into Tensors.
+
+        Params::
+            preprocs, aftprocs: process argument is "input", "label"
+                ex) preprocs=[lambda x, y: [dict(x), y]]
         """
         super().__init__(dataset, dtype_data, dtype_target, **kwargs)
         self.tokenizer = tokenizer
@@ -76,19 +83,17 @@ class TextDataLoader(BaseDataLoader):
         assert isinstance(tokenizer_params_label, dict)
         self.tokenizer_params_input = tokenizer_params_input
         self.tokenizer_params_label = tokenizer_params_label
-        self.preprocs_input   = preprocs_input if isinstance(preprocs_input, list) else ([preprocs_input, ] if preprocs_input is not None else [])
-        self.aftprocs_input   = aftprocs_input if isinstance(aftprocs_input, list) else ([aftprocs_input, ] if aftprocs_input is not None else [])
-        self.preprocs_label   = preprocs_label if isinstance(preprocs_label, list) else ([preprocs_label, ] if preprocs_label is not None else [])
-        self.aftprocs_label   = aftprocs_label if isinstance(aftprocs_label, list) else ([aftprocs_label, ] if aftprocs_label is not None else [])
+        self.preprocs = preprocs if isinstance(preprocs, list) else ([preprocs, ] if preprocs is not None else [])
+        self.aftprocs = aftprocs if isinstance(aftprocs, list) else ([aftprocs, ] if aftprocs is not None else [])
+        for proc in self.preprocs: assert proc.__code__.co_nlocals == 2
+        for proc in self.aftprocs: assert proc.__code__.co_nlocals == 2
     def collate_fn(self, batch):
         input, label = list(zip(*batch))
         input, label = list(input), list(label)
-        for proc in self.preprocs_input: input = proc(input)
-        for proc in self.preprocs_label: label = proc(label)
+        for proc in self.preprocs: input, label = proc(input, label)
         input = self.tokenizer(input, **self.tokenizer_params_input)
         if check_type_list(label, str): label = self.tokenizer(label, **self.tokenizer_params_label)
-        for proc in self.aftprocs_input: input = proc(input)
-        for proc in self.aftprocs_label: label = proc(label)
+        for proc in self.aftprocs: input, label = proc(input, label)
         return self.to_tensor(input, label)
 
 

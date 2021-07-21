@@ -123,6 +123,7 @@ class ConfigModule(nn.Module):
                     self.is_middle_release = True
                 if isinstance(module, nn.HuggingfaceModule):
                     self.tokenizer = module.tokenizer
+                    self.huggingface_config = module.config
     
     def forward(self, input: Union[torch.Tensor, List[torch.Tensor], dict]):
         if self.is_debug: t0 = time.perf_counter()

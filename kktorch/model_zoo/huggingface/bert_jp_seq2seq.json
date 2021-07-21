@@ -2,12 +2,13 @@
     "name": "huggingface",
     "user_parameters": {
         "___n_node": 768,
+        "___vocab_size": 32000,
         "___dict_freeze": {"BertEncoder": 8}
     },
     "network": [
         {
             "class": "HuggingfaceModule",
-            "args": "cl-tohoku/bert-base-japanese-whole-word-masking",
+            "args": "sonoisa/t5-base-japanese",
             "kwargs": {
                 "dict_freeze": "___dict_freeze"
             }
@@ -15,6 +16,11 @@
         {
             "class": "SelectIndexListInput",
             "args": 0
+        },
+        {
+            "class": "Linear",
+            "args": ["___n_node", "___vocab_size"]
         }
+
    ]
 }

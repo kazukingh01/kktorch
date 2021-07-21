@@ -104,7 +104,12 @@ class LivedoorNewsDataLoader(TextDataLoader):
         self.dirpath = correct_dirpath(root) + "LivedoorNews/"
         url = "https://www.rondhuit.com/download/ldcc-20140209.tar.gz"
         deploy_files(url, self.dirpath, download, extract="gz")
-        df = text_files_to_dataframe(self.dirpath + "text/", regex_list=[r"[0-9]\.txt$"], encoding="utf8")
+        filepath_df = self.dirpath + "df.pickle"
+        if os.path.exists(filepath_df):
+            df = pd.read_pickle(filepath_df)
+        else:
+            df = text_files_to_dataframe(self.dirpath + "text/", regex_list=[r"[0-9]\.txt$"], encoding="utf8")
+            df.to_pickle(filepath_df)
         df["text"]  = df["text"].apply(lambda x: "\n".join(x.split("\n")[2:]))
         df["title"] = df["text"].apply(lambda x: x.split("\n")[0])
         df["body"]  = df["text"].apply(lambda x: "\n".join(x.split("\n")[1:]))

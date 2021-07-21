@@ -330,6 +330,11 @@ class HuggingfaceModule(PretrainedModule):
         model = AutoModel.from_pretrained(name_model)
         super().__init__(model, name_model, **kwargs)
         self.tokenizer = AutoTokenizer.from_pretrained(name_model)
+        self.config    = model.config
+        self.is_check  = True
     def forward(self, input: dict):
+        if self.is_check:
+            assert isinstance(input, dict)
+            self.is_check = False
         output = self.model(**input)
         return super().forward(output)

@@ -31,11 +31,11 @@ if __name__ == "__main__":
 
     # dataloader
     dataloader_train = NewsPaperDataLoader(
-        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": 512, "truncation": True}, aftprocs_input=[lambda x: dict(x)],
+        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": network.tokenizer.model_max_length, "truncation": True}, aftprocs=[lambda x, y: [dict(x), y]],
         root='./data', train=True,  download=True, batch_size=64, shuffle=True,  num_workers=4
     )
     dataloader_valid = NewsPaperDataLoader(
-        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": 512, "truncation": True}, aftprocs_input=[lambda x: dict(x)],
+        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": network.tokenizer.model_max_length, "truncation": True}, aftprocs=[lambda x, y: [dict(x), y]],
         root='./data', train=False, download=True, batch_size=64, shuffle=False, num_workers=4
     )
 
