@@ -1,4 +1,4 @@
-import os, copy, shutil
+import os, copy, shutil, glob, re
 from typing import List, Union
 
 
@@ -8,6 +8,7 @@ __all__ =[
     "correct_dirpath",
     "convert_1d_array",
     "makedirs",
+    "get_file_list",
 ]
 
 
@@ -76,3 +77,12 @@ def makedirs(dirpath: str, exist_ok: bool = False, remake: bool = False):
     dirpath = correct_dirpath(dirpath)
     if remake and os.path.isdir(dirpath): shutil.rmtree(dirpath)
     os.makedirs(dirpath, exist_ok = exist_ok)
+
+def get_file_list(dirpath: str, regex_list: List[str]=[]) -> List[str]:
+    dirpath = correct_dirpath(dirpath)
+    file_list_org = glob.glob(dirpath + "**", recursive=True)
+    file_list_org = list(filter(lambda x: os.path.isfile(x), file_list_org))
+    file_list     = []
+    for regstr in regex_list:
+        file_list += list(filter(lambda x: len(re.findall(regstr, x)) > 0, file_list_org))
+    return file_list if len(regex_list) > 0 else file_list_org

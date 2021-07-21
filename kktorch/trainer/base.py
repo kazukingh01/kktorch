@@ -356,7 +356,7 @@ epoch : {self.epoch}
         output = self.val_to(proc_pre(input))
         if   isinstance(output, list) or isinstance(output, tuple): output = self.network(*output)
         elif isinstance(output, torch.Tensor): output = self.network(output)
-        elif isinstance(output, dict): output = self.network(**output)
+        elif isinstance(output, dict): output = self.network(output)
         else:
             logger.raise_error(f"network input value is not expected type. {output}")
         # after proc
@@ -408,7 +408,7 @@ epoch : {self.epoch}
         if (self.iter - 1) % self.accumulation_step == 0:
             self.network.zero_grad()
         if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
-            logger.info(f"iter: {self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else 'List '+len(input)}\nSample input label: \n{label}")
+            logger.info(f"iter: {self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
         loss, losses = self.calc_losses(input, label, is_valid=False)
         loss = loss / self.accumulation_step
         loss.backward()

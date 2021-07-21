@@ -290,9 +290,6 @@ class PretrainedModule(BaseModule):
         self.freeze()
     def extra_repr(self):
         return f'name_model={self.name_model}'
-    def forward(self, input: torch.Tensor):
-        output = self.model(input)
-        return super().forward(output)
     def freeze(self):
         dictwk = {}
         for module in self.model.modules():
@@ -318,6 +315,9 @@ class TimmModule(PretrainedModule):
         import timm
         model = timm.create_model(name_model, pretrained=pretrained)
         super().__init__(model, name_model, **kwargs)
+    def forward(self, input: torch.Tensor):
+        output = self.model(input)
+        return super().forward(output)
 
 
 class HuggingfaceModule(PretrainedModule):

@@ -49,36 +49,7 @@ class ImageDataset(Dataset):
         return img, labels
 
 
-class TextDataset(Dataset):
-    def __init__(self, tokenizer: Callable=None, preproc: List[Callable]=None, aftproc: List[Callable]=None):
-        super().__init__()
-        self.tokenizer = tokenizer
-        self.preproc   = preproc if isinstance(preproc, list) else ([] if preproc is None else [preproc, ])
-        self.aftproc   = aftproc if isinstance(aftproc, list) else ([] if aftproc is None else [aftproc, ])
-    def __getitem__(self, index: int):
-        raise NotImplementedError
-    def __len__(self):
-        raise NotImplementedError
-    def set_tokenizer(self, tokenizer):
-        self.tokenizer = tokenizer
-    def apply(self, text: str):
-        output = text
-        for proc in self.preproc: output = proc(output)
-        output = self.tokenizer(output)
-        for proc in self.aftproc: output = proc(output)
-        return output 
-    def transform(self, input: object):
-        output = None
-        if isinstance(input, list) or isinstance(input, tuple):
-            output = [self.apply(x) if isinstance(x, str) else x for x in input]
-        elif isinstance(input, str):
-            output = self.apply(input)
-        else:
-            output = input
-        return output
-
-
-class DataframeDataset(TextDataset):
+class DataframeDataset(Dataset):
     def __init__(self, df: pd.DataFrame, columns: Union[List[str], List[int]], **kwargs):
         assert isinstance(df, pd.DataFrame)
         assert check_type_list(columns, [int, str])
@@ -86,7 +57,7 @@ class DataframeDataset(TextDataset):
         self.ndf     = df.iloc[:, self.columns].values.copy() if check_type_list(columns, [int]) else df.loc[:, self.columns].values.copy()
         super().__init__(**kwargs)
     def __getitem__(self, index: int):
-        return self.transform(tuple(self.ndf[index]))
+        return tuple(self.ndf[index])
     def __len__(self):
         return self.ndf.shape[0]
 
