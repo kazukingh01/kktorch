@@ -1,9 +1,6 @@
 import logging, io, os, datetime
 from typing import List, Union
 
-# local package
-from kktorch.util.com import correct_dirpath
-
 
 __all__ = [
     "set_logger",

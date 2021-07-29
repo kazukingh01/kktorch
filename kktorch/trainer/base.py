@@ -421,6 +421,7 @@ epoch : {self.epoch}
             if self.iter % self.accumulation_step == 0: self.optimizer.second_step(zero_grad=True)
         else:
             if self.iter % self.accumulation_step == 0:
+                if self.accumulation_step > 1: logger.info("optimizer step with accumulation.")
                 self.optimizer.step()
         if self.scheduler is not None: self.scheduler.step()
         loss   = self.val_to_cpu(loss)
@@ -498,9 +499,10 @@ epoch : {self.epoch}
         makedirs(self.outdir, exist_ok=True, remake=True)
         self.writer = SummaryWriter(log_dir=self.outdir + "logs")
 
-    def predict(self, dataloader: DataLoader, is_label: bool=False):
+    def predict(self, dataloader: DataLoader, is_label: bool=False, sample_size: int=-1):
+        self.network.eval()
         output, label = None, None
-        for _input, _label in dataloader:
+        for i_batch, (_input, _label) in enumerate(dataloader):
             _output, _label = self.processes(_input, label=_label if is_label else None, is_valid=True)
             if output is None:
                 output = []
@@ -513,6 +515,10 @@ epoch : {self.epoch}
                     for _ in range(len(_label)): label.append([])
                 for i, x in enumerate(_label):
                     label[i].append(self.val_to_cpu(x).numpy())
+            if sample_size > 0 and (i_batch + 1) >= sample_size: break
         output = [np.concatenate(x, axis=0) for x in output]
-        if is_label: label = [np.concatenate(x, axis=0) for x in label]
+        if len(output) == 1: output = output[0]
+        if is_label:
+            label = [np.concatenate(x, axis=0) for x in label]
+            if len(label) == 1: label = label[0]
         return output, label

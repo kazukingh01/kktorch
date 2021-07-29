@@ -77,15 +77,15 @@ class ConfigModule(nn.Module):
         if user_parameters is not None and isinstance(user_parameters, dict):
             for x, y in user_parameters.items(): self.user_params[x] = y
         for x, y in self.user_params.items():
-            if isinstance(y, str): self.user_params[x] = self.spetial_word(y)
+            if isinstance(y, str): self.user_params[x] = self.special_word(y)
         list_module = []
         for dictwk in self.config["network"]:
             args   = dictwk.get("args")   if isinstance(dictwk.get("args"), list)   else ([dictwk.get("args")] if dictwk.get("args") is not None else [])
             kwargs = dictwk.get("kwargs") if isinstance(dictwk.get("kwargs"), dict) else {}
             for i, x in enumerate(args):
-                if isinstance(x, str): args[i] = self.spetial_word(x)
+                if isinstance(x, str): args[i] = self.special_word(x)
             for _key, x in kwargs.items():
-                if isinstance(x, str): kwargs[_key] = self.spetial_word(x)
+                if isinstance(x, str): kwargs[_key] = self.special_word(x)
             if dictwk["class"] in __all__:
                 kwargs["is_call_first"] = False
                 dictwkwk = copy.deepcopy(self.user_params)
@@ -103,7 +103,7 @@ class ConfigModule(nn.Module):
                 name_outnode = "out_features"
             elif isinstance(dictwk.get("out_features"), int): self.user_params["__before"] = dictwk.get("out_features")
             elif isinstance(dictwk.get("out_features"), str):
-                out_features = self.spetial_word(dictwk.get("out_features"))
+                out_features = self.special_word(dictwk.get("out_features"))
                 if isinstance(out_features, int): self.user_params["__before"] = out_features
                 else: name_outnode = out_features
             if name_outnode is not None:
@@ -124,6 +124,8 @@ class ConfigModule(nn.Module):
                 if isinstance(module, nn.HuggingfaceModule):
                     self.tokenizer = module.tokenizer
                     self.huggingface_config = module.config
+                if isinstance(module, nn.SharedParameterModule):
+                    module.set_parameter(self.get_parameter(module.param_address))
     
     def forward(self, input: Union[torch.Tensor, List[torch.Tensor], dict]):
         if self.is_debug: t0 = time.perf_counter()
@@ -152,7 +154,7 @@ class ConfigModule(nn.Module):
         for mod in self.middle_mod: mod.middle_output = None
         return outpout
     
-    def spetial_word(self, string: str):
+    def special_word(self, string: str):
         """
         Replaces or converts the special string in the argument to a number
         """

@@ -1,3 +1,4 @@
+import re, copy
 import numpy as np
 import torch
 from torch import nn
@@ -5,6 +6,7 @@ from typing import List, Union
 
 # local packages
 import kktorch.util.tensor as util
+from kktorch.util.com import check_type_list
 
 
 __all__ = [
@@ -18,6 +20,7 @@ __all__ = [
     "SelectIndexListInput",
     "SelectIndexTensorInput",
     "ParameterModule",
+    "SharedParameterModule",
     "AggregateInput",
     "EvalModule",
     "PretrainedModule",
@@ -246,6 +249,29 @@ class ParameterModule(BaseModule):
         return list_output
 
 
+class SharedParameterModule(BaseModule):
+    def __init__(
+        self, param_address: str, name: str=None, is_copy: bool=False, requires_grad: bool=True, output_eval: str="[x, y]"
+    ):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"))
+        self.param          = None
+        self.param_address  = param_address
+        self.is_copy        = is_copy
+        self.requires_grad  = requires_grad
+        self.output_eval    = output_eval
+        self.forward_output = lambda x, y: eval(self.output_eval, {"input": x, "param": y, "torch": torch})
+    def extra_repr(self):
+        return f'name={self.name}, param_address={self.param_address}, is_copy={self.is_copy}, requires_grad={self.requires_grad}, output_eval: {self.output_eval}'
+    def forward(self, input: torch.Tensor):
+        output = self.forward_output(input, self.param)
+        return super().forward(output)
+    def set_parameter(self, param: nn.parameter.Parameter):
+        if self.is_copy:
+            param = copy.deepcopy(param)
+            param.requires_grad = self.requires_grad
+        self.param = param
+
+
 class AggregateInput(BaseModule):
     def __init__(self, aggregate: str, name: str=None, **kwargs):
         """
@@ -276,7 +302,7 @@ class EvalModule(BaseModule):
 
 
 class PretrainedModule(BaseModule):
-    def __init__(self, model: nn.Module, name_model: str, name_module: str=None, dict_freeze: dict=None):
+    def __init__(self, model: nn.Module, name_model: str, name_module: str=None, freeze_layers: Union[str, List[str]]=None):
         """
         Params::
             name_module: If string, You can use a module that is part of a model named "name_module"
@@ -284,25 +310,24 @@ class PretrainedModule(BaseModule):
                 ex) {"Linear": 10}, Freeze all modules until "Linear" is encountered 10 times.
         """
         super().__init__(name=f"{self.__class__.__name__}({name_model})")
-        self.name_model  = name_model
-        self.dict_freeze = dict_freeze if dict_freeze is not None else {}
-        self.model       = model if name_module is None else getattr(model, name_module)
+        self.name_model    = name_model
+        self.freeze_layers = ([freeze_layers, ] if isinstance(freeze_layers, str) else freeze_layers) if freeze_layers is not None else []
+        assert check_type_list(self.freeze_layers, str)
+        self.model = model if name_module is None else getattr(model, name_module)
         self.freeze()
     def extra_repr(self):
         return f'name_model={self.name_model}'
     def freeze(self):
         dictwk = {}
-        for module in self.model.modules():
-            name = module.__class__.__name__
-            if dictwk.get(name) is None: dictwk[name] = 1
-            else: dictwk[name] += 1
-            for x, y in self.dict_freeze.items():
-                if dictwk.get(x) is None or dictwk.get(x) <= y:
-                    if hasattr(module, "weight") and module.weight is not None:
-                        module.weight.requires_grad = False
-                    if hasattr(module, "bias")   and module.bias   is not None:
-                        module.bias.  requires_grad = False
-        print(dictwk)
+        for name, params in self.model.named_parameters():
+            is_freeze = False
+            for regstr in self.freeze_layers:
+                if len(re.findall(regstr, name)) > 0:
+                    is_freeze = True
+                    break
+            if is_freeze:
+                params.requires_grad = False
+            print(f"{name}: freeze ( {is_freeze} )")
 
 
 class TimmModule(PretrainedModule):

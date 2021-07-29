@@ -16,8 +16,11 @@ if __name__ == "__main__":
         ## You can override the config settings.
         user_parameters={
             "___n_node": 768,
-            "___vocab_size": 32100,
-            "___dict_freeze": {"BertEncoder": 10},
+            "___freeze_layers": [
+                "^shared\\.weight",
+                "^encoder\\.block\\.[0-9]\\.layer",
+                "^decoder\\.block\\.[0-9]\\.layer"
+            ]
         },
     )
 
@@ -36,7 +39,7 @@ if __name__ == "__main__":
         aftprocs=[
             lambda x, y: [{"input_ids": x["input_ids"], "attention_mask": x["attention_mask"], "decoder_input_ids": shift_right(torch.Tensor(y["input_ids"]), decoder_start_token_id)}, y["input_ids"]],
         ], 
-        root='./data', train=True,  download=True, columns=["body", "title"], batch_size=32, shuffle=True,  num_workers=6
+        root='./data', train=True,  download=True, columns=["body", "title"], batch_size=1, shuffle=True,  num_workers=0
     )
     dataloader_valid = LivedoorNewsDataLoader(
         network.tokenizer, 
@@ -45,7 +48,7 @@ if __name__ == "__main__":
         aftprocs=[
             lambda x, y: [{"input_ids": x["input_ids"], "attention_mask": x["attention_mask"], "decoder_input_ids": shift_right(torch.Tensor(y["input_ids"]), decoder_start_token_id)}, y["input_ids"]],
         ], 
-        root='./data', train=False, download=True, columns=["body", "title"], batch_size=32, shuffle=False, num_workers=6
+        root='./data', train=False, download=True, columns=["body", "title"], batch_size=1, shuffle=False, num_workers=0
     )
 
     class MyLoss(torch.nn.CrossEntropyLoss):
@@ -58,14 +61,14 @@ if __name__ == "__main__":
     # trainer
     trainer = Trainer(
         network,
-        losses_train=MyLoss(32100, ignore_index=0),
-        losses_valid=[[MyLoss(32100, ignore_index=0)]],
+        losses_train=MyLoss(network.huggingface[2].param.shape[0], ignore_index=0),
+        losses_valid=[[MyLoss(network.huggingface[2].param.shape[0], ignore_index=0)]],
         losses_train_name="ce",
         losses_valid_name=[["ce"]],
         optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=1e-5)}, 
         dataloader_train =dataloader_train,
         dataloader_valids=dataloader_valid,
-        epoch=1000, valid_step=10, print_step=100, 
+        epoch=10, valid_step=10, print_step=100, accumulation_step=10,
     )
 
     # to cuda

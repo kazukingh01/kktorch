@@ -2,7 +2,11 @@
     "name": "timm",
     "user_parameters": {
         "___n_classes": 3,
-        "___dict_freeze": {"Sequential": 4}
+        "___freeze_layers": [
+            "^conv_stem\\.",
+            "^bn1\\.",
+            "^blocks\\.[0-5]\\."
+        ]
     },
     "network": [
         {
@@ -10,7 +14,7 @@
             "args": "efficientnet_b1",
             "kwargs": {
                 "pretrained": true,
-                "dict_freeze": "___dict_freeze"
+                "freeze_layers": "___freeze_layers"
             }
         },
         {

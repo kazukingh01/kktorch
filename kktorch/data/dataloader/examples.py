@@ -76,7 +76,6 @@ class NewsPaperDataLoader(TextDataLoader):
         deploy_files(url, self.dirpath, download, extract="zip")
         df    = pd.read_csv(csv_filepath, sep="\t", header=None)
         df[4] = df[4].map({"b": 0, "t": 1, "e": 2, "m": 3}).astype(np.int32)
-        df    = df.loc[np.random.permutation(df.index.values)]
         indexes_train, indexes_test = split_train_test(df.shape[0])
         df_train = df.iloc[indexes_train].copy()
         df_test  = df.iloc[indexes_test ].copy()
