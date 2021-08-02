@@ -2,9 +2,9 @@ import torch, kktorch
 from kktorch.trainer.base import Trainer
 from kktorch.data.dataloader import LivedoorNewsDataLoader
 from kktorch.nn.configmod import ConfigModule
+from kktorch.util.text.transforms import shift_right_decoder_input, decoder_attention_mask, generate
 
-
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import T5ForConditionalGeneration, T5Tokenizer, EncoderDecoderModel
 
 if __name__ == "__main__":
     # config file
@@ -23,30 +23,42 @@ if __name__ == "__main__":
             ]
         },
     )
-
     decoder_start_token_id = network.huggingface_config.decoder_start_token_id
-    def shift_right(input_ids, decoder_start_token_id: int=0):
-        # see: https://github.com/huggingface/transformers/blob/master/src/transformers/models/t5/modeling_t5.py#L770-L794
-        shifted_input_ids = torch.full(input_ids.shape[:-1] + (1,), decoder_start_token_id)
-        shifted_input_ids = torch.cat([shifted_input_ids, input_ids[..., :-1]], dim=-1)
-        return shifted_input_ids
-
+    
     # dataloader
     dataloader_train = LivedoorNewsDataLoader(
         network.tokenizer, 
-        tokenizer_params_input={"padding": "longest"},
-        tokenizer_params_label={"padding": "longest"},
+        tokenizer_params_input={"padding": "longest", "max_length": 1024, "truncation": True},
+        tokenizer_params_label={"padding": "longest", "max_length": 1024, "truncation": True},
         aftprocs=[
-            lambda x, y: [{"input_ids": x["input_ids"], "attention_mask": x["attention_mask"], "decoder_input_ids": shift_right(torch.Tensor(y["input_ids"]), decoder_start_token_id)}, y["input_ids"]],
+            lambda x, y: [
+                {
+                    "input_ids": x["input_ids"], "attention_mask": x["attention_mask"], 
+                    "decoder_input_ids": shift_right_decoder_input()(
+                        y["input_ids"], decoder_start_token_id=decoder_start_token_id, 
+                        eos_token_id=network.tokenizer.eos_token_id, padding_token_id=decoder_start_token_id
+                    ),
+                    "decoder_attention_mask": decoder_attention_mask()(y["input_ids"], decoder_start_token_id),
+                }, y["input_ids"]
+            ],
         ], 
-        root='./data', train=True,  download=True, columns=["body", "title"], batch_size=1, shuffle=True,  num_workers=0
+        root='./data', train=True,  download=True, columns=["body", "title"], batch_size=16, shuffle=True,  num_workers=0
     )
     dataloader_valid = LivedoorNewsDataLoader(
         network.tokenizer, 
         tokenizer_params_input={"padding": "longest"},
         tokenizer_params_label={"padding": "longest"},
         aftprocs=[
-            lambda x, y: [{"input_ids": x["input_ids"], "attention_mask": x["attention_mask"], "decoder_input_ids": shift_right(torch.Tensor(y["input_ids"]), decoder_start_token_id)}, y["input_ids"]],
+            lambda x, y: [
+                {
+                    "input_ids": x["input_ids"], "attention_mask": x["attention_mask"], 
+                    "decoder_input_ids": shift_right_decoder_input()(
+                        y["input_ids"], decoder_start_token_id=decoder_start_token_id, 
+                        eos_token_id=network.tokenizer.eos_token_id, padding_token_id=decoder_start_token_id
+                    ),
+                    "decoder_attention_mask": decoder_attention_mask()(y["input_ids"], decoder_start_token_id),
+                }, y["input_ids"]
+            ],
         ], 
         root='./data', train=False, download=True, columns=["body", "title"], batch_size=1, shuffle=False, num_workers=0
     )
@@ -68,11 +80,20 @@ if __name__ == "__main__":
         optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=1e-5)}, 
         dataloader_train =dataloader_train,
         dataloader_valids=dataloader_valid,
-        epoch=10, valid_step=10, print_step=100, accumulation_step=10,
+        epoch=100, valid_step=10, print_step=100, accumulation_step=1,
     )
 
+    # load
+    trainer.load("./output_train_bert_jp_seq2seq_20210731192854/model_33347.pth")
+    network.huggingface[0].freeze()
     # to cuda
     trainer.to_cuda()
 
     # training
-    trainer.train()
+    #trainer.train()
+
+    # generate
+    x, y = dataloader_valid[1]
+    output = generate()(network, x, bos_token_id=0, eos_token_id=1)
+    network.tokenizer.decode(output.tolist()[0])
+    network.tokenizer.decode(y.tolist()[0])

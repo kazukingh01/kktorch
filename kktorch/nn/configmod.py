@@ -125,7 +125,7 @@ class ConfigModule(nn.Module):
                     self.tokenizer = module.tokenizer
                     self.huggingface_config = module.config
                 if isinstance(module, nn.SharedParameterModule):
-                    module.set_parameter(self.get_parameter(module.param_address))
+                    module.set_parameter({x:y for x, y in self.named_parameters()}[module.param_address])
     
     def forward(self, input: Union[torch.Tensor, List[torch.Tensor], dict]):
         if self.is_debug: t0 = time.perf_counter()

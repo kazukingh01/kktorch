@@ -26,6 +26,9 @@ class BaseDataLoader(DataLoader):
         self.to_tensor_label = lambda x: x
         self.to_dtype_data   = lambda x, y: x.to(y)
         self.to_dtype_label  = lambda x, y: x.to(y)
+    def __getitem__(self, index: int):
+        sample = self.dataset[index]
+        return self.collate_fn((sample,))
     def collate_fn(self, batch):
         input, label = list(zip(*batch))
         return self.to_tensor(input, label)
@@ -57,8 +60,6 @@ class BaseDataLoader(DataLoader):
         input = self.to_dtype_data( input, self.dtype_data)
         label = self.to_dtype_label(label, self.dtype_target)
         return input, label
-    def sample(self):
-        return next(iter(self))
 
 
 class TextDataLoader(BaseDataLoader):
@@ -72,7 +73,6 @@ class TextDataLoader(BaseDataLoader):
         Usually, it needs to be converted to Tensor in Dataset.
         In the case of Text, since it is more efficient to tokenize a list of sentences together, 
         DataLoader converts them into Tensors.
-
         Params::
             preprocs, aftprocs: process argument is "input", "label"
                 ex) preprocs=[lambda x, y: [dict(x), y]]
