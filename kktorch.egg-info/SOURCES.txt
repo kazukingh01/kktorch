@@ -27,3 +27,5 @@ kktorch/util/tensor.py
 kktorch/util/image/__init__.py
 kktorch/util/image/numpy.py
 kktorch/util/image/transforms.py
+kktorch/util/text/__init__.py
+kktorch/util/text/transforms.py

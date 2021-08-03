@@ -3,6 +3,7 @@ from typing import List, Union
 
 
 __all__ =[
+    "CheckFunction",
     "check_type",
     "check_type_list",
     "correct_dirpath",
@@ -10,6 +11,20 @@ __all__ =[
     "makedirs",
     "get_file_list",
 ]
+
+
+class CheckFunction:
+    def __init__(self):
+        self.is_check = True
+    def __call__(self, *args, **kwargs):
+        if self.is_check:
+            self.check(*args, **kwargs)
+            self.is_check = False
+        return self.main(*args, **kwargs)
+    def main(self, *args, **kwargs):
+        raise NotImplementedError
+    def check(self, *args, **kwargs):
+        raise NotImplementedError
 
 
 def check_type(instance: object, _type: Union[object, List[object]]):

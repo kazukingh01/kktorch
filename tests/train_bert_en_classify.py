@@ -6,7 +6,7 @@ from kktorch.nn.configmod import ConfigModule
 
 if __name__ == "__main__":
     # config file
-    fjson = "../kktorch/model_zoo/huggingface/bert_en.json"
+    fjson = "../kktorch/model_zoo/huggingface/bert_en_classify.json"
 
     # load config file and create network
     network = ConfigModule(
