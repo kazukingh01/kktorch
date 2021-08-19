@@ -9,6 +9,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+autocast = torch.cuda.amp.autocast
 
 from kktorch.util.com import check_type, check_type_list, correct_dirpath, convert_1d_array, makedirs
 from kktorch.util.logger import set_logger
@@ -47,8 +48,8 @@ class Trainer:
         valid_step: int=-1, early_stopping_rounds: int=-1, early_stopping_min_iter: int=-1, 
         move_ave_steps: int=1, early_stopping_i_valid: Union[int, List[int]]=None,
         # others
-        outdir: str="./output_"+datetime.datetime.now().strftime("%Y%m%d%H%M%S"), 
-        print_step: int=-1, save_step: int=None, random_seed: int=0        
+        outdir: str="./output_"+datetime.datetime.now().strftime("%Y%m%d%H%M%S"), auto_mixed_precision: bool=False, 
+        print_step: int=-1, save_step: int=None, random_seed: int=0
     ):
         """
         Params::
@@ -98,7 +99,10 @@ class Trainer:
                 ex) 2 output, 3 (2 + 1) validation losses
                         [[Output1_Loss1, Output1_Loss2], [Output2_Loss3, ]]
                     If early_stopping_i_valid = 2,     it is used "Output2_Loss3" value for early stopping 
-                    If early_stopping_i_valid = [1,2], it is used "Output1_Loss2" and "Output2_Loss3" sum value for early stopping 
+                    If early_stopping_i_valid = [1,2], it is used "Output1_Loss2" and "Output2_Loss3" sum value for early stopping
+            ### others ###
+            autocast:
+                use mixed precision. torch.cuda.amp.autocast(enabled=True)
         """
         self.set_seed_all(random_seed)
         # network
@@ -131,6 +135,7 @@ class Trainer:
         self.outdir     = correct_dirpath(outdir)
         self.save_step  = save_step
         self.print_step = print_step
+        self.auto_mixed_precision = auto_mixed_precision
         # TensorBoard
         self.writer = None
         # Init
@@ -217,6 +222,7 @@ epoch : {self.epoch}
         if isinstance(self.early_stopping_i_valid, int): self.early_stopping_i_valid = [self.early_stopping_i_valid]
         if self.early_stopping_i_valid is not None:
             assert check_type_list(self.early_stopping_i_valid, int)
+        assert isinstance(self.auto_mixed_precision, bool)
 
     def initialize(self):
         self.iter       = 0
@@ -229,7 +235,8 @@ epoch : {self.epoch}
         self.best_params     = {"iter": 0, "loss_valid": float("inf"), "params": {}}
         self.setup_optimizer()
         self.setup_scheduler()
-        self.time_iter  = 0
+        self.scaler    = torch.cuda.amp.GradScaler()
+        self.time_iter = 0
 
     @classmethod
     def _reset_parameters(cls, module: nn.Module, weight: Union[str, float]=None):
@@ -270,17 +277,16 @@ epoch : {self.epoch}
         self.losses_valid = work(self.losses_valid)
         self.is_cuda = True
 
-    def val_to(self, input: Union[dict, list, tuple, torch.Tensor]):
-        if self.is_cuda:
-            if   isinstance(input, torch.Tensor):
-                return input.to(self.gpu_device)
-            elif isinstance(input, list) or isinstance(input, tuple):
-                return [x.to(self.gpu_device) for x in input]
-            elif isinstance(input, dict):
-                return {x:y.to(self.gpu_device) if hasattr(y, "to") else y for x, y in input.items()}
-            else:
-                logger.raise_error(f"input value is not expected type. {input}")
-        return input
+    @classmethod
+    def val_to_any(cls, input: Union[dict, list, tuple, torch.Tensor], anytype):
+        if   isinstance(input, torch.Tensor):
+            return input.to(anytype)
+        elif isinstance(input, list) or isinstance(input, tuple):
+            return [x.to(anytype) for x in input]
+        elif isinstance(input, dict):
+            return {x:y.to(anytype) if hasattr(y, "to") else y for x, y in input.items()}
+        else:
+            logger.raise_error(f"input value is not expected type. {input}")
     
     @classmethod
     def val_to_cpu(cls, input: Union[dict, list, tuple, torch.Tensor]):
@@ -300,6 +306,11 @@ epoch : {self.epoch}
         elif isinstance(input, dict):
             return {x:work(y) if isinstance(y, torch.Tensor) else y for x, y in input.items()}
 
+    def val_to_gpu(self, input: Union[dict, list, tuple, torch.Tensor]):
+        if self.is_cuda:
+            return self.val_to_any(input, self.gpu_device)
+        return input
+    
     def save(self, filename: str=None, is_best: bool=False):
         logger.info("model weight saving...", color="GREEN")
         if is_best:
@@ -346,19 +357,20 @@ epoch : {self.epoch}
         By default, the output will always be in list format. This is to account for multiple outputs and multiple loss calculations.
         """
         output = None
-        # label proc ##Do not put val_to after network(input).It slows things down for some reason.
+        # label proc ##Do not put val_to_gpu after network(input).It slows things down for some reason.
         if label is not None:
-            label = self.val_to(self.process_label(label))
+            label = self.val_to_gpu(self.process_label(label))
         # set pre/after proc based on whether it is training or not.
         proc_pre = self.process_data_valid_pre if is_valid else self.process_data_train_pre
         proc_aft = self.process_data_valid_aft if is_valid else self.process_data_train_aft
         # pre proc
-        output = self.val_to(proc_pre(input))
-        if   isinstance(output, list) or isinstance(output, tuple): output = self.network(*output)
-        elif isinstance(output, torch.Tensor): output = self.network(output)
-        elif isinstance(output, dict): output = self.network(output)
-        else:
-            logger.raise_error(f"network input value is not expected type. {output}")
+        output = self.val_to_gpu(proc_pre(input))
+        with autocast(enabled=self.auto_mixed_precision):
+            if   isinstance(output, list) or isinstance(output, tuple): output = self.network(*output)
+            elif isinstance(output, torch.Tensor): output = self.network(output)
+            elif isinstance(output, dict): output = self.network(output)
+            else:
+                logger.raise_error(f"network input value is not expected type. {output}")
         # after proc
         output = proc_aft(output)
         return output, label
@@ -378,16 +390,17 @@ epoch : {self.epoch}
                 logger.info(f'iter: {self.iter}.\nSample output: \n{output}\nSample output label: \n{label}')
             # loss calculation
             loss, losses = 0, []
-            for i, loss_func in enumerate(loss_funcs):
-                if isinstance(loss_func, list):
-                    # In validation, multiple evaluations can be performed on a single output.
-                    for _loss_func in loss_func:
-                        losses.append(_loss_func(output[i], label[i]))
+            with autocast(enabled=self.auto_mixed_precision):
+                for i, loss_func in enumerate(loss_funcs):
+                    if isinstance(loss_func, list):
+                        # In validation, multiple evaluations can be performed on a single output.
+                        for _loss_func in loss_func:
+                            losses.append(_loss_func(output[i], label[i]))
+                            loss = loss + losses[-1]
+                    else:
+                        loss_weight = loss_funcs_weight if isinstance(loss_funcs_weight, float) else loss_funcs_weight[i]
+                        losses.append(loss_weight * loss_func(output[i], label[i]))
                         loss = loss + losses[-1]
-                else:
-                    loss_weight = loss_funcs_weight if isinstance(loss_funcs_weight, float) else loss_funcs_weight[i]
-                    losses.append(loss_weight * loss_func(output[i], label[i]))
-                    loss = loss + losses[-1]
             return loss, losses
         loss, losses = 0, []
         if is_valid:
@@ -411,18 +424,19 @@ epoch : {self.epoch}
             logger.info(f"iter: {self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
         loss, losses = self.calc_losses(input, label, is_valid=False)
         loss = loss / self.accumulation_step
-        loss.backward()
+        self.scaler.scale(loss).backward()
         if hasattr(self.optimizer, "first_step"):
             # For SUM optimizers
             if self.iter % self.accumulation_step == 0: self.optimizer.first_step(zero_grad=True)
             loss, losses = self.calc_losses(input, label, is_valid=False)
             loss = loss / self.accumulation_step
-            loss.backward()
+            self.scaler.scale(loss).backward()
             if self.iter % self.accumulation_step == 0: self.optimizer.second_step(zero_grad=True)
         else:
             if self.iter % self.accumulation_step == 0:
                 if self.accumulation_step > 1: logger.info("optimizer step with accumulation.")
-                self.optimizer.step()
+                self.scaler.step(self.optimizer)
+        self.scaler.update()
         if self.scheduler is not None: self.scheduler.step()
         loss   = self.val_to_cpu(loss)
         losses = self.val_to_cpu(losses)

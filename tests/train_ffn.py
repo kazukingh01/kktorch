@@ -57,6 +57,7 @@ if __name__ == "__main__":
     """
 
     # trainer
+    n_data, batch_size = 1024*(2**4), 512*(2**4)
     trainer = Trainer(
         network,
         losses_train=torch.nn.MSELoss(),
@@ -65,9 +66,9 @@ if __name__ == "__main__":
         losses_valid_name="mse",
         optimizer={"optimizer": torch.optim.SGD, "params": dict(lr=0.001, weight_decay=0)}, 
         scheduler={"scheduler": torch.optim.lr_scheduler.StepLR, "params": dict(step_size=1000, gamma=0.8)},
-        dataloader_train =RandomDataLoader(1024, in_features, n_classes, target_type="reg", batch_size=512, shuffle=True),
-        dataloader_valids=RandomDataLoader(1024, in_features, n_classes, target_type="reg", batch_size=512, shuffle=False),
-        epoch=1000, valid_step=10, print_step=100, 
+        dataloader_train =RandomDataLoader(n_data, in_features, n_classes, target_type="reg", batch_size=batch_size, shuffle=True),
+        dataloader_valids=RandomDataLoader(n_data, in_features, n_classes, target_type="reg", batch_size=batch_size, shuffle=False),
+        epoch=1000, valid_step=10, print_step=100, auto_mixed_precision=False
     )
 
     # to cuda

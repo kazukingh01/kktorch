@@ -42,7 +42,7 @@ if __name__ == "__main__":
                 }, y["input_ids"]
             ],
         ], 
-        root='./data', train=True,  download=True, columns=["body", "title"], batch_size=16, shuffle=True,  num_workers=0
+        root='./data', train=True,  download=True, columns=["body", "title"], batch_size=4, shuffle=True,  num_workers=0
     )
     dataloader_valid = LivedoorNewsDataLoader(
         network.tokenizer, 
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=1e-5)}, 
         dataloader_train =dataloader_train,
         dataloader_valids=dataloader_valid,
-        epoch=100, valid_step=10, print_step=100, accumulation_step=1,
+        epoch=100, valid_step=10, print_step=100, accumulation_step=1, auto_mixed_precision=False
     )
 
     # to cuda

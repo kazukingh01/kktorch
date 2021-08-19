@@ -72,7 +72,7 @@ if __name__ == "__main__":
         optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=0.0001)}, 
         dataloader_train =dataloader_train,
         dataloader_valids=dataloader_valid,
-        epoch=1000, valid_step=10, print_step=100, 
+        epoch=1000, valid_step=10, print_step=100, auto_mixed_precision=True
     )
 
     # to cuda
