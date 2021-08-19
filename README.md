@@ -5,7 +5,7 @@
 ## Installation
 First, You will need to manually install pytorch for your machine environment (see: https://pytorch.org/get-started/locally/ )!!
 ```
-pip install git+https://github.com/kazukingh01/kktorch.git
+pip install git+https://github.com/kazukingh01/kktorch.git@v1.0.0
 ```
 
 ## Model Zoo
