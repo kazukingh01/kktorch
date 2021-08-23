@@ -1,21 +1,24 @@
 import random, os
 import zipfile, tarfile
-from typing import Callable
+from typing import Callable, Union, List
 import pandas as pd
 import numpy as np
 
 import torch, torchvision
 import torchvision.transforms as transforms
 
-from kktorch.data.dataset import DataframeDataset
+from kktorch.data.dataset import DataframeDataset, ImageDataset
 from kktorch.util.com import correct_dirpath, makedirs
 from kktorch.util.files import download_file
 from kktorch.util.dataframe import text_files_to_dataframe
 from kktorch.data.dataloader.dataloader import BaseDataLoader, TextDataLoader
+import kktorch.util.image as tfms
+from kktorch.util.com import get_file_list
 
 
 __all__ = [
     "MNISTDataLoader",
+    "PASCALvoc2012DataLoader",
     "NewsPaperDataLoader",
     "LivedoorNewsDataLoader",
 ]
@@ -33,7 +36,7 @@ def split_train_test(index: int, seed: int=0, percent: float=0.8):
 
 
 def deploy_files(url: str, dirpath: str, download: bool, extract: str="zip"):
-    assert isinstance(extract, str) and extract in ["zip", "gz"]
+    assert isinstance(extract, str) and extract in ["zip", "gz", "tar"]
     makedirs(dirpath, exist_ok=True, remake=False)
     filepath = dirpath + os.path.basename(url)
     if download and not os.path.exists(filepath):
@@ -43,6 +46,9 @@ def deploy_files(url: str, dirpath: str, download: bool, extract: str="zip"):
                 existing_zip.extractall(dirpath)
         elif extract == "gz":
             with tarfile.open(filepath, 'r:gz') as t:
+                t.extractall(path=dirpath)
+        elif extract == "tar":
+            with tarfile.open(filepath, 'r') as t:
                 t.extractall(path=dirpath)
 
 
@@ -58,6 +64,43 @@ class MNISTDataLoader(BaseDataLoader):
         super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)
 
 
+class PASCALvoc2012DataLoader(BaseDataLoader):
+    PASCALVOC2012_DEFAULT_MEAN = (0.4587, 0.4380, 0.4017)
+    PASCALVOC2012_DEFAULT_STD  = (0.2749, 0.2722, 0.2870)
+    def __init__(
+        self, root: str='./data', train: bool=True, download: bool=True, 
+        transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([
+            tfms.ToTensor(),
+        ]), **kwargs
+    ):
+        """
+        see: http://host.robots.ox.ac.uk/pascal/VOC/voc2012/index.html
+        """
+        self.dirpath = correct_dirpath(root) + "PASCALvoc2012/"
+        # download
+        url = "http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar"
+        deploy_files(url, self.dirpath, download, extract="tar")
+        # set data infomation
+        df = pd.DataFrame(get_file_list(self.dirpath + "VOCdevkit/VOC2012/JPEGImages/"), columns=["filepath"])
+        df["filename"] = df["filepath"].apply(lambda x: os.path.basename(x))
+        df["id"]       = df["filename"].str.replace(".jpg", "", regex=False)
+        for x in get_file_list(self.dirpath + "VOCdevkit/VOC2012/ImageSets/Main", regex_list=[r"_trainval\.txt"]):
+            dfwk = pd.read_csv(x, sep="\s+", header=None, names=["id", "label_" + os.path.basename(x).split("_")[0]])
+            df   = pd.merge(df, dfwk, how="left", on="id")
+        # train, test
+        indexes_train = pd.read_csv(self.dirpath + "VOCdevkit/VOC2012/ImageSets/Main/train.txt", header=None)[0].values
+        indexes_test  = pd.read_csv(self.dirpath + "VOCdevkit/VOC2012/ImageSets/Main/val.txt",   header=None)[0].values
+        df_train = df.loc[df["id"].isin(indexes_train)].copy()
+        df_test  = df.loc[df["id"].isin(indexes_test) ].copy()
+        self.df  = df_train if train else df_test
+        dataset  = ImageDataset(
+            self.df["filepath"].values.tolist(), 
+            self.df.loc[:, self.df.columns[self.df.columns.str.contains("^label_")].tolist()].astype(int).values.tolist(),
+            transforms=transforms
+        )
+        super().__init__(dataset, dtype_data=torch.float32, dtype_target=torch.long, **kwargs)
+
+
 class NewsPaperDataLoader(TextDataLoader):
     def __init__(
         self, tokenizer: Callable, root: str='./data', train: bool=True, download: bool=True, **kwargs
@@ -71,11 +114,14 @@ class NewsPaperDataLoader(TextDataLoader):
             label: 'b'
         """
         self.dirpath = correct_dirpath(root) + "NewsPaper/"
+        # download
         url          = "https://archive.ics.uci.edu/ml/machine-learning-databases/00359/NewsAggregatorDataset.zip"
         csv_filepath = self.dirpath + "newsCorpora.csv"
         deploy_files(url, self.dirpath, download, extract="zip")
+        # set data infomation
         df    = pd.read_csv(csv_filepath, sep="\t", header=None)
         df[4] = df[4].map({"b": 0, "t": 1, "e": 2, "m": 3}).astype(np.int32)
+        # train, test
         indexes_train, indexes_test = split_train_test(df.shape[0])
         df_train = df.iloc[indexes_train].copy()
         df_test  = df.iloc[indexes_test ].copy()
@@ -118,6 +164,7 @@ class LivedoorNewsDataLoader(TextDataLoader):
             'livedoor-homme': 3, 'movie-enter':4, 'peachy':5, 'smax': 6,
             'sports-watch': 7, 'topic-news': 8
         })
+        # train, test
         indexes_train, indexes_test = split_train_test(df.shape[0])
         df_train = df.iloc[indexes_train].copy()
         df_test  = df.iloc[indexes_test ].copy()

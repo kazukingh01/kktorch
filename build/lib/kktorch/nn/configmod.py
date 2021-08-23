@@ -160,10 +160,10 @@ class ConfigModule(nn.Module):
         """
         if string == "__dirpath":
             return self.dirpath
-        elif sum([string.find(x) >= 0 for x in list(self.user_params.keys()) + list("+-/* ")]) > 0:
+        elif sum([string.find(x) >= 0 for x in list(self.user_params.keys())]) > 0:
             try:
                 return eval(string, copy.deepcopy(self.user_params)) # need copy.deepcopy
-            except (NameError, SyntaxError, TypeError):
+            except (NameError, SyntaxError, TypeError, AttributeError):
                 for x, y in self.user_params.items():
                     if string.find(x) >= 0: string = string.replace(x, str(y)) # ex) "(___AAA)" -> "(10)"
                 return string

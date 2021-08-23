@@ -4,49 +4,72 @@ import numpy as np
 import cv2
 from typing import List, Union, Callable
 from PIL import Image
+import torch
 from torch.utils.data import Dataset
 
 from kktorch.util.com import correct_dirpath, check_type_list
-import kktorch.util.image as proc_image
+import kktorch.util.image as tfms
 
 
 class ImageDataset(Dataset):
     def __init__(
-        self, json_data: str, root_dirpath: str=None,
-        str_filename: str="name", str_label: str="label",
-        transforms = ["pil2cv", ]
+        self, image_paths: List[str], labels: List[object],
+        transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([tfms.ToTensor(),])
     ):
         super().__init__()
         """
-        label infomation load
-        Format::
-            [
-                {"name": "test0.png", "label": 1}, 
-                {"name": "test0.png", "label": [1,2,3,]}, 
-                ...
-            ]
         Params::
-            transforms: like augmentations.
+            image_paths:
+                list of image file paths.
+                ["./data/imageA.jpg", "./data/imageB.jpg", ...]
+            labels:
+                labels.
+                [1, 0, ...] or [[1,2,3], [2,3,4], ...] or [objectA, objectB, ...]
+            transforms:
+                torchvision.transforms.Compose or List
+                If Compose:
+                    a image is transformed by Compose and create 1 image.
+                If List:
+                    a image is transformed by Compose of List and create N image.
         """
-        self.str_filename = str_filename
-        self.str_label    = str_label
-        self.json_data   = json.load(open(json_data)) if type(json_data) == str else json_data.copy()
-        for x in self.json_data:
-            x[self.str_label] = tuple(x[self.str_label]) if type(x[self.str_label]) in [list, tuple] else (x[self.str_label],)
-        self.root_dirpath = correct_dirpath(root_dirpath) if root_dirpath is not None else None
-        self.transforms   = transforms if isinstance(transforms, list) else []
-        self.transforms   = [getattr(proc_image, proc_name) for proc_name in self.transforms]
-        self.len          = len(self.json_data)
-
+        assert check_type_list(image_paths, str)
+        assert isinstance(labels, list) and len(image_paths) == len(labels)
+        assert isinstance(transforms, tfms.Compose) or check_type_list(transforms, tfms.Compose)
+        self.image_paths  = image_paths
+        self.labels       = labels
+        self.len          = len(self.image_paths)
+        self.transforms   = [transforms] if isinstance(transforms, tfms.Compose) else transforms
+        self.concat       = (lambda x: x) if len(self.transforms) == 1 else self.concat_same_resolution
+        self.is_check     = True
+        self.dict_indexes = {}
     def __len__(self):
         return self.len
-
     def __getitem__(self, index):
-        name   = self.json_data[index][self.str_filename]
-        img    = Image.open(name if self.root_dirpath is None else self.root_dirpath + name)
-        for proc in self.transforms: img = proc(img)
-        labels = self.json_data[index][self.str_label]
-        return img, labels
+        path = self.image_paths[index]
+        img  = Image.open(path)
+        imgs = []
+        for procs in self.transforms: imgs.append(procs(img))
+        imgs   = self.concat(imgs)
+        labels = self.labels[index]
+        return (*imgs, labels)
+    def concat_same_resolution(self, input: List[torch.Tensor]):
+        """
+        Combine images of the same resolution when there are multiple augmentations and different resolutions are output.
+        """
+        if self.is_check:
+            assert check_type_list(input, torch.Tensor)
+            assert sum([(len(img.shape) == 3) for img in input]) == len(input)
+            for i, img in enumerate(input):
+                shape = tuple(img.shape)
+                if self.dict_indexes.get(shape) is None:
+                    self.dict_indexes[shape] = [i]
+                else:
+                    self.dict_indexes[shape].append(i)
+            self.is_check = False
+        output = []
+        for _, y in self.dict_indexes.items():
+            output.append(torch.stack([input[i] for i in y]))
+        return output
 
 
 class DataframeDataset(Dataset):

@@ -227,6 +227,7 @@ epoch : {self.epoch}
     def initialize(self):
         self.iter       = 0
         self.iter_best  = 0
+        self.i_epoch    = 0
         self.classes_   = None
         self.gpu_device = torch.device("cuda:0")
         self.early_stopping_iter = 0
@@ -330,20 +331,15 @@ epoch : {self.epoch}
         self.network.load_state_dict(torch.load(model_path))
         self.network.eval()
     
-    @classmethod
-    def process_data_train_pre(cls, input: Union[torch.Tensor, List[torch.Tensor]]):
+    def process_data_train_pre(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return input
-    @classmethod
-    def process_data_train_aft(cls, input: Union[torch.Tensor, List[torch.Tensor]]):
+    def process_data_train_aft(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return [input, ] if isinstance(input, torch.Tensor) else input
-    @classmethod
-    def process_data_valid_pre(cls, input: Union[torch.Tensor, List[torch.Tensor]]):
+    def process_data_valid_pre(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return input
-    @classmethod
-    def process_data_valid_aft(cls, input: Union[torch.Tensor, List[torch.Tensor]]):
+    def process_data_valid_aft(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return [input, ] if isinstance(input, torch.Tensor) else input
-    @classmethod
-    def process_label(cls, input: Union[torch.Tensor, List[torch.Tensor]]):
+    def process_label(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return [input, ] if isinstance(input, torch.Tensor) else input
 
     def processes(
@@ -366,11 +362,7 @@ epoch : {self.epoch}
         # pre proc
         output = self.val_to_gpu(proc_pre(input))
         with autocast(enabled=self.auto_mixed_precision):
-            if   isinstance(output, list) or isinstance(output, tuple): output = self.network(*output)
-            elif isinstance(output, torch.Tensor): output = self.network(output)
-            elif isinstance(output, dict): output = self.network(output)
-            else:
-                logger.raise_error(f"network input value is not expected type. {output}")
+            output = self.network(output)
         # after proc
         output = proc_aft(output)
         return output, label
@@ -387,7 +379,7 @@ epoch : {self.epoch}
         def work(input, label, processes, loss_funcs, loss_funcs_weight=1.0, is_valid=False):
             output, label = processes(input, label=label, is_valid=is_valid)
             if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
-                logger.info(f'iter: {self.iter}.\nSample output: \n{output}\nSample output label: \n{label}')
+                logger.info(f'iter: {self.i_epoch}|{self.iter}.\nSample output: \n{output}\nSample output label: \n{label}')
             # loss calculation
             loss, losses = 0, []
             with autocast(enabled=self.auto_mixed_precision):
@@ -421,7 +413,7 @@ epoch : {self.epoch}
         if (self.iter - 1) % self.accumulation_step == 0:
             self.network.zero_grad()
         if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
-            logger.info(f"iter: {self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
+            logger.info(f"iter: {self.i_epoch}|{self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
         loss, losses = self.calc_losses(input, label, is_valid=False)
         loss = loss / self.accumulation_step
         self.scaler.scale(loss).backward()
@@ -440,7 +432,7 @@ epoch : {self.epoch}
         if self.scheduler is not None: self.scheduler.step()
         loss   = self.val_to_cpu(loss)
         losses = self.val_to_cpu(losses)
-        logger.info(f'iter: {self.iter}, train: {loss}, losses: {losses}, time: {(time.perf_counter() - self.time_iter)}, lr: {"No schedule." if self.scheduler is None else self.scheduler.get_last_lr()[0]}')
+        logger.info(f'iter: {self.i_epoch}|{self.iter}, train: {loss}, losses: {losses}, time: {(time.perf_counter() - self.time_iter)}, lr: {"No schedule." if self.scheduler is None else self.scheduler.get_last_lr()[0]}')
         self.time_iter = time.perf_counter()
         # tensor board
         self.write_tensor_board("learning_rate", self.optimizer.defaults["lr"] if self.scheduler is None else self.scheduler.get_last_lr()[0])
@@ -482,7 +474,7 @@ epoch : {self.epoch}
                     "params": copy.deepcopy(self.network.state_dict()),
                 }
             logger.info(
-                f'iter: {self.iter}, valid: {loss_valid}, losses: {losses_valid}, loss ave: {self.loss_valid_hist.mean()}, ' + \
+                f'iter: {self.i_epoch}|{self.iter}, valid: {loss_valid}, losses: {losses_valid}, loss ave: {self.loss_valid_hist.mean()}, ' + \
                 f'best iter: {self.best_params["iter"]}, best loss: {self.best_params["loss_valid"]}'
             )
             if isinstance(self.early_stopping_rounds, int) and self.early_stopping_rounds > 0 and self.early_stopping_iter >= self.early_stopping_rounds and \
@@ -493,7 +485,8 @@ epoch : {self.epoch}
     def train(self):
         self.init_training()
         try:
-            for _ in range(self.epoch):
+            for i_epoch in range(self.epoch):
+                self.i_epoch = i_epoch + 1
                 for input, label in self.dataloader_train:
                     # train
                     self._train_step(input, label)
@@ -503,7 +496,7 @@ epoch : {self.epoch}
                             input, label = next(iter(dataloader_valid))
                             self._valid_step(input, label, i_valid=i_valid)
         except EarlyStoppingError:
-            logger.warning(f'early stopping. iter: {self.iter}, best_iter: {self.best_params["iter"]}, loss: {self.best_params["loss_valid"]}')
+            logger.warning(f'early stopping. iter: {self.i_epoch}|{self.iter}, best_iter: {self.best_params["iter"]}, loss: {self.best_params["loss_valid"]}')
             self.iter_best = self.best_params["iter"]
         self.writer.close()
         self.save(is_best=True)

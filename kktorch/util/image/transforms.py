@@ -1,51 +1,80 @@
 import random
+from typing import Union
 import numpy as np
-from PIL import Image
+import torch
+from PIL.Image import Image
 from torchvision import transforms
-
+from torchvision.transforms import functional, InterpolationMode
 
 __all__ = [
-    "RandomRotation90",
-    "RandomFliplr",
     "ResizeFixRatio",
 ]
 
 
-class RandomRotation90(object):
-    """Rotate by one of the given angles."""
+class _Transforms:
     def __init__(self):
-        self.values = [0, 1, 2, 3]
-    def __call__(self, img: np.ndarray):
-        value = random.choice(self.values)
-        return np.rot90(img, value) if value > 0 else img
-
-class RandomFliplr(object):
-    def __init__(self):
-        self.values = [False, True]
-    def __call__(self, img: np.ndarray):
-        value = random.choice(self.values)
-        return np.fliplr(img) if value else img
-
-class ResizeFixRatio(object):
-    def __init__(self, size: int, fit_type: str="max"):
-        self.size = size
-        self.fit_type = fit_type
-        if not (isinstance(self.fit_type, str) and self.fit_type in ["max", "min", "v", "h"]):
-            raise Exception(f"fit_type must be selected in ['max', 'min', 'v', 'h']")
+        self.is_check = True
     def __str__(self):
-        return f'{self.__class__.__name__}(size: {self.size}. fit_type: {self.fit_type})'
-    def __call__(self, img: Image):
-        w, h = img.size
+        return f'{self.__class__.__name__}({self.__dict__})'
+    def __call__(self, img: Union[Image, torch.Tensor], **kwargs):
+        if self.is_check:
+            self.check(img)
+            self.is_check = False
+        return self.transform(img, **kwargs)
+    def check(self):
+        # Only one call the first time.
+        raise NotImplementedError
+    def transform(self):
+        raise NotImplementedError
+
+
+class ResizeFixRatio(_Transforms):
+    def __init__(self, size: int, fit_type: str="max", min_size: int=0):
+        """
+        Usage::
+            >>> from PIL import Image
+            >>> import numpy as np
+            >>> img = Image.fromarray(np.random.randint(0, 255, (300, 500, 3)).astype(np.uint8))
+            >>> ResizeFixRatio(100, "min")(img).size
+            (166, 100)
+            >>> ResizeFixRatio(100, "max")(img).size
+            (100, 60)
+            >>> ResizeFixRatio(200, "height")(img).size
+            (333, 200)
+            >>> ResizeFixRatio(200, "width")(img).size
+            (200, 120)
+            >>> ResizeFixRatio(200, "min", 400)(img).size
+            (500, 300)
+            >>> import torch
+            >>> ResizeFixRatio(100, "min")(torch.rand(3, 200,200)).shape
+            torch.Size([3, 100, 100])
+        """
+        assert isinstance(size,     int)
+        assert isinstance(fit_type, str) and fit_type in ["max", "min", "height", "width"]
+        assert isinstance(min_size, int) and min_size >= 0
+        super().__init__()
+        self.size      = size
+        self.fit_type  = fit_type
+        self.min_size  = min_size
+        self.get_size  = lambda img: img.size
+        self.calc_size = lambda w, h, size: (w, h)
         if   self.fit_type == "max":
-            w, h = (self.size, self.size * h / w, ) if w > h else (self.size * w / h, self.size, )
-            w, h = int(w), int(h)
+            self.calc_size = lambda w, h, size: ((size, size * h / w, ) if w > h else (size * w / h, size, ))
         elif self.fit_type == "min":
-            w, h = (self.size * w / h, self.size) if w > h else (self.size, self.size * h / w, )
+            self.calc_size = lambda w, h, size: ((size * w / h, size) if w > h else (size, size * h / w, ))
+        elif self.fit_type == "height":
+            self.calc_size = lambda w, h, size: (size * w / h, size)
+        elif self.fit_type == "width":
+            self.calc_size = lambda w, h, size: (size, size * h / w)
+    def check(self, img: Union[Image, torch.Tensor]):
+        assert isinstance(img, Image) or isinstance(img, torch.Tensor)
+        if isinstance(img, torch.Tensor):
+            assert len(img.shape) == 3
+            self.get_size = lambda img: (img.shape[2], img.shape[1])
+    def transform(self, img: Union[Image, torch.Tensor]) -> Union[Image, torch.Tensor]:
+        w, h = self.get_size(img)
+        if not (w < self.min_size or h < self.min_size):
+            w, h = self.calc_size(w, h, self.size)
             w, h = int(w), int(h)
-        elif self.fit_type == "v":
-            w, h = self.size * w / h, self.size
-            w, h = int(w), int(h)
-        elif self.fit_type == "h":
-            w, h = self.size, self.size * h / w
-            w, h = int(w), int(h)
-        return transforms.Resize((h,w))(img)
+            return functional.resize(img, (h,w), InterpolationMode.BILINEAR, max_size=None, antialias=None)
+        return img

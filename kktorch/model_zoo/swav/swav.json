@@ -1,0 +1,88 @@
+{
+    "name": "swav",
+    "user_parameters": {
+        "___n_projection": 1024,
+        "___k_clusters": 512,
+        "___n_augmentation": 2
+    },
+    "network": [
+        {
+            "class": "ApplyModule",
+            "args": {
+                "name": "backbone",
+                "network": [
+                    {
+                        "class": "EvalModule",
+                        "args": "input.reshape(-1,*input.shape[-3:])"
+                    },
+                    {
+                        "class": "TimmModule",
+                        "args": "efficientnet_b1",
+                        "kwargs": {
+                            "pretrained": false,
+                            "set_ident_layers": ["classifier"]
+                        }
+                    }            
+                ]
+            }
+        },
+        {
+            "class": "AggregateInput",
+            "args": "cat",
+            "kwargs": {
+                "dim": 0
+            }
+        },
+        {
+            "class": "BatchNorm1d",
+            "args": 1280
+        },
+        {
+            "class": "ReLU"
+        },
+        {
+            "class": "Linear",
+            "args": [1280, "___n_projection"]
+        },
+        {
+            "class": "ParameterModule",
+            "args": ["___k_clusters", "___n_projection"],
+            "kwargs": {
+                "init_type": "randn",
+                "output_type": "parallel"
+            }
+        },
+        {
+            "class": "SplitModule",
+            "args": [
+                {
+                    "name": "l2normalize_input",
+                    "network": [
+                        {
+                            "class": "EvalModule",
+                            "args": "torch.nn.functional.normalize(input, dim=1, p=2)"
+                        }
+                    ]
+                }, 
+                {
+                    "name": "l2normalize_param",
+                    "network": [
+                        {
+                            "class": "EvalModule",
+                            "args": "input.requires_grad_(False).set_(torch.nn.functional.normalize(input, dim=1, p=2)).requires_grad_(True)",
+                            "kwargs": {"is_no_grad": true}
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "class": "EinsumInput",
+            "args": "bd,kd->bk"
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "___n_augmentation", "b"]
+        }
+   ]
+}

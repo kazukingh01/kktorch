@@ -1,4 +1,4 @@
-from typing import Callable, List, Union
+from typing import Callable, List, Union, Dict
 import numpy as np
 
 import torch
@@ -15,50 +15,110 @@ __all__ = [
 
 
 class BaseDataLoader(DataLoader):
-    def __init__(self, dataset: Dataset, dtype_data: torch.dtype, dtype_target: torch.dtype, **kwargs):
+    def __init__(
+        self, dataset: Dataset, 
+        dtype_data:   Union[torch.dtype, List[torch.dtype], Dict[object, torch.dtype]], 
+        dtype_target: Union[torch.dtype, List[torch.dtype], Dict[object, torch.dtype]],
+        **kwargs
+    ):
         self.dtype_data   = dtype_data
         self.dtype_target = dtype_target
         if kwargs.get("collate_fn") is None: kwargs["collate_fn"] = self.collate_fn
         if kwargs.get("pin_memory") is None: kwargs["pin_memory"] = True
         super().__init__(dataset, **kwargs)
         self.is_check  = True
-        self.to_tensor_data  = lambda x: x
-        self.to_tensor_label = lambda x: x
-        self.to_dtype_data   = lambda x, y: x.to(y)
-        self.to_dtype_label  = lambda x, y: x.to(y)
+        self.procs_to_tensor_data = []
+        self.proc_to_tensor_label = lambda x: x
+        self.procs_to_dtype_data  = []
+        self.proc_to_dtype_label  = lambda x, y: x.to(y)
     def __getitem__(self, index: int):
         sample = self.dataset[index]
         return self.collate_fn((sample,))
+    def __len__(self):
+        return len(self.dataset)
     def collate_fn(self, batch):
-        input, label = list(zip(*batch))
+        *input, label = list(zip(*batch))
         return self.to_tensor(input, label)
-    def to_tensor(self, input, label):
-        if self.is_check:
-            if isinstance(input, dict):
-                self.to_tensor_data = lambda x: {y:torch.Tensor(z) for y, z in x.items()}
-                if isinstance(self.dtype_data, dict): self.to_dtype_data = lambda x, y: {a:b.to(y[a]) for a, b in x.items()}
-                else:                                 self.to_dtype_data = lambda x, y: {a:b.to(y)    for a, b in x.items()}
-            elif check_type_list(input, [torch.Tensor]):
-                self.to_tensor_data = torch.stack
+    @classmethod
+    def judge_to_tensor_function(cls, input):
+        error = Exception(f"Not match input.\ntype: {type(input)}\ninput: {input}")
+        if isinstance(input, dict):
+            return lambda x: {y:torch.Tensor(z) for y, z in x.items()}
+        elif isinstance(input, list) or isinstance(input, tuple):
+            if isinstance(input, tuple): input = list(input)
+            if   check_type_list(input, [torch.Tensor]):
+                return torch.stack
             elif check_type_list(input, [int, float], [int, float], [int, float], [int, float]):
-                self.to_tensor_data = torch.Tensor
+                return torch.Tensor
             else:
-                raise Exception(f"Not match input.\ntype: {type(input)}\ninput: {input}")
-            if isinstance(label, dict):
-                self.to_tensor_label = lambda x: {y:torch.Tensor(z) for y, z in x.items()}
-                if isinstance(self.dtype_target, dict): self.to_dtype_label = lambda x, y: {a:b.to(y[a]) for a, b in x.items()}
-                else:                                   self.to_dtype_label = lambda x, y: {a:b.to(y)    for a, b in x.items()}
-            elif check_type_list(label, [torch.Tensor]):
-                self.to_tensor_label = torch.stack
-            elif check_type_list(label, [int, float], [int, float], [int, float], [int, float]):
-                self.to_tensor_label = torch.Tensor
+                raise error
+        elif isinstance(input, np.ndarray):
+            return torch.from_numpy
+        else:
+            raise error
+    @classmethod
+    def judge_to_dtype_function(cls, input, dtype):
+        error = Exception(f"Not match dtype: {dtype}")
+        if isinstance(input, dict):
+            if isinstance(dtype, dict):
+                return lambda x, y: {a:b.to(y[a]) for a, b in x.items()}
+            elif isinstance(dtype, torch.dtype):
+                return lambda x, y: {a:b.to(y)    for a, b in x.items()}
             else:
-                raise Exception(f"Not match label.\ntype: {type(label)}\ninput: {label}")
+                raise error
+        elif isinstance(input, list) or isinstance(input, tuple):
+            if isinstance(dtype, list) and check_type_list(dtype, torch.dtype):
+                assert len(dtype) == len(input)
+                return lambda x, y: [_input.to(y[i]) for i, _input in enumerate(x)]
+            elif isinstance(dtype, torch.dtype):
+                return lambda x, y: [_input.to(y) for _input in x]
+            else:
+                raise error
+        else:
+            return lambda x, y: x.to(y)
+    def to_tensor(self, input: List[object], label):
+        """
+        Assume multiple inputs, so input is assumed to be lsit.
+        The dataset i returns a value like the following.
+            (tensor([0.7227, 0.1555]), tensor([0.7227, 0.1555]), [1,2])
+                dataA_i: tensor([0.7227, 0.1555])
+                dataB_i: tensor([0.7227, 0.1555])
+                label_i: [labelx, labely]
+        Receive this in batch (size N).
+            >>> *input, label = list(zip(*batch))
+            >>> input[0]
+            [dataA_1, dataA_2, ..., dataA_N]
+            >>> input[1]
+            [dataB_1, dataB_2, ..., dataB_N]
+            >>> label
+            [label_1, label_2, ..., label_N]
+        Then combine these lists and convert them to tensors.
+            >>> torch.stack(input[0])
+            tensor([[0.6719, 0.3023],
+                    [0.6470, 0.2717],
+                    ...,
+                    [0.8315, 0.9313],
+                    [0.9756, 0.9820]])
+            >>> torch.stack(input[0]).shape
+            torch.Size([N, 2]) # 2 is dimension.
+        """
+        if self.is_check:
+            assert isinstance(input, list)
+            procs_to_tensor_data, procs_to_dtype_data = [], []
+            for _input in input:
+                procs_to_tensor_data.append(self.judge_to_tensor_function(_input))
+                output = procs_to_tensor_data[-1](_input)
+                procs_to_dtype_data.append(self.judge_to_dtype_function(output, self.dtype_data))
+            self.procs_to_tensor_data = lambda x   : [procs_to_tensor_data[i](_input   ) for i, _input in enumerate(x)]
+            self.procs_to_dtype_data  = lambda x, y: [procs_to_dtype_data[ i](_input, y) for i, _input in enumerate(x)]
+            self.proc_to_tensor_label = self.judge_to_tensor_function(label)
+            self.proc_to_dtype_label  = self.judge_to_dtype_function(self.proc_to_tensor_label(label), self.dtype_target)
             self.is_check = False
-        input = self.to_tensor_data(input)
-        label = self.to_tensor_label(label)
-        input = self.to_dtype_data( input, self.dtype_data)
-        label = self.to_dtype_label(label, self.dtype_target)
+        input = self.procs_to_tensor_data(input)
+        input = self.procs_to_dtype_data( input, self.dtype_data)
+        if len(input) == 1: input = input[0]
+        label = self.proc_to_tensor_label(label)
+        label = self.proc_to_dtype_label(label, self.dtype_target)
         return input, label
 
 
@@ -94,7 +154,7 @@ class TextDataLoader(BaseDataLoader):
         input = self.tokenizer(input, **self.tokenizer_params_input)
         if check_type_list(label, str): label = self.tokenizer(label, **self.tokenizer_params_label)
         for proc in self.aftprocs: input, label = proc(input, label)
-        return self.to_tensor(input, label)
+        return self.to_tensor([input,], label)
 
 
 class RandomDataLoader(BaseDataLoader):
