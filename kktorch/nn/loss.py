@@ -96,9 +96,9 @@ class SwAVLoss(_Loss):
         tens_zt = torch.einsum("abc->bac", input) # N_Aug, Batch, K_cluster
         with torch.no_grad():
             tens_zs  = tens_zt[:2].clone()
-            tens_qs  = self.sinkhorn(tens_zs).detach()
-            tens_qs1 = tens_qs[0].repeat(tens_zt.shape[0] - 1, 1, 1)
-            tens_qs2 = tens_qs[1].repeat(tens_zt.shape[0] - 1, 1, 1)
+            tens_qs  = self.sinkhorn(tens_zs)
+            tens_qs1 = tens_qs[0].repeat(tens_zt.shape[0] - 1, 1, 1).detach()
+            tens_qs2 = tens_qs[1].repeat(tens_zt.shape[0] - 1, 1, 1).detach()
         tens_pt = self.log_softmax(tens_zt / self.temperature, dim=2)
         loss1   = (-1 * tens_qs1 * torch.cat([tens_pt[1:2], tens_pt[2:]], dim=0)).sum(dim=2)
         loss2   = (-1 * tens_qs2 * torch.cat([tens_pt[0:1], tens_pt[2:]], dim=0)).sum(dim=2)

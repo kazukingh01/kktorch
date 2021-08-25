@@ -26,6 +26,7 @@ __all__ = [
     "PretrainedModule",
     "TimmModule",
     "HuggingfaceModule",
+    "SharedVariablesModule",
 ]
 
 
@@ -304,11 +305,28 @@ class EvalModule(BaseModule):
     def __init__(self, eval: str, name: str=None, is_no_grad: bool=False):
         super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), is_no_grad=is_no_grad)
         self.eval = eval
+        self.variables = None
     def extra_repr(self):
         return f'eval={self.eval}'
     def forward_child(self, input: torch.Tensor):
-        output = eval(self.eval, {"input": input, "torch": torch})
+        output = eval(self.eval, {"input": input, "torch": torch, "variables": self.variables})
         return output
+    def set_variables(self, variables: dict):
+        assert isinstance(variables, dict)
+        self.variables = variables
+
+
+class SharedVariablesModule(EvalModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_check = True
+    def forward_child(self, input: torch.Tensor):
+        variables = eval(self.eval, {"input": input, "torch": torch})
+        if self.is_check:
+            assert isinstance(variables, dict)
+            self.is_check = False
+        self.variables.update(variables)
+        return input
 
 
 class PretrainedModule(BaseModule):

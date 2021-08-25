@@ -70,6 +70,15 @@ class ImageDataset(Dataset):
         for _, y in self.dict_indexes.items():
             output.append(torch.stack([input[i] for i in y]))
         return output
+    def get_image(self, index: int, img_type: str="cv2"):
+        assert isinstance(img_type, str) and img_type in ["cv2", "pil"]
+        path = self.image_paths[index]
+        img  = None
+        if   img_type == "cv2":
+            img = cv2.imread(path)
+        elif img_type == "pil":
+            img = Image.open(path)
+        return img
 
 
 class DataframeDataset(Dataset):

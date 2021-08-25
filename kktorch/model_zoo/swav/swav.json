@@ -3,7 +3,7 @@
     "user_parameters": {
         "___n_projection": 1024,
         "___k_clusters": 512,
-        "___n_augmentation": 2
+        "___n_timm_dim": 1280
     },
     "network": [
         {
@@ -11,6 +11,10 @@
             "args": {
                 "name": "backbone",
                 "network": [
+                    {
+                        "class": "SharedVariablesModule",
+                        "args": "{'n_aug': input.shape[1]}"
+                    },
                     {
                         "class": "EvalModule",
                         "args": "input.reshape(-1,*input.shape[-3:])"
@@ -22,7 +26,15 @@
                             "pretrained": false,
                             "set_ident_layers": ["classifier"]
                         }
-                    }            
+                    },
+                    {
+                        "class": "EvalModule",
+                        "args": "input.reshape(-1, variables['n_aug'], input.shape[-1])"
+                    },
+                    {
+                        "class": "EinsumInput",
+                        "args": "bnd->nbd"
+                    }
                 ]
             }
         },
@@ -34,20 +46,37 @@
             }
         },
         {
+            "class": "EinsumInput",
+            "args": "nbd->bnd"
+        },
+        {
+            "class": "SharedVariablesModule",
+            "args": "{'n_aug': input.shape[1]}"
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "c"]
+        },
+        {
             "class": "BatchNorm1d",
-            "args": 1280
+            "args": "___n_timm_dim"
+        },
+        {
+            "class": "EvalModule",
+            "args": "input.reshape(-1, variables['n_aug'], input.shape[-1])"
         },
         {
             "class": "ReLU"
         },
         {
             "class": "Linear",
-            "args": [1280, "___n_projection"]
+            "args": ["___n_timm_dim", "___n_projection"]
         },
         {
             "class": "ParameterModule",
-            "args": ["___k_clusters", "___n_projection"],
+            "args": ["___n_projection", "___k_clusters"],
             "kwargs": {
+                "name": "cluster_param",
                 "init_type": "randn",
                 "output_type": "parallel"
             }
@@ -60,8 +89,11 @@
                     "network": [
                         {
                             "class": "EvalModule",
-                            "args": "torch.nn.functional.normalize(input, dim=1, p=2)"
-                        }
+                            "args": "torch.nn.functional.normalize(input, dim=-1, p=2)"
+                        },
+                        {
+                            "class": "MiddleSaveOutput"
+                        }                
                     ]
                 }, 
                 {
@@ -69,7 +101,7 @@
                     "network": [
                         {
                             "class": "EvalModule",
-                            "args": "input.requires_grad_(False).set_(torch.nn.functional.normalize(input, dim=1, p=2)).requires_grad_(True)",
+                            "args": "input.requires_grad_(False).set_(torch.nn.functional.normalize(input, dim=0, p=2)).requires_grad_(True)",
                             "kwargs": {"is_no_grad": true}
                         }
                     ]
@@ -78,11 +110,7 @@
         },
         {
             "class": "EinsumInput",
-            "args": "bd,kd->bk"
-        },
-        {
-            "class": "ReshapeInput",
-            "args": [-1, "___n_augmentation", "b"]
+            "args": "bnd,dk->bnk"
         }
-   ]
+    ]
 }
