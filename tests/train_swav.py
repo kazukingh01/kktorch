@@ -61,7 +61,7 @@ if __name__ == "__main__":
             ),
         ])
 
-    # dataloader
+    # dataloader. multi crop 2 x 256x256, 4 x 128x128
     dataloader_train = PASCALvoc2012DataLoader(
         root='./data', train=True, download=True, batch_size=20, shuffle=True, drop_last=True,
         transforms=[
@@ -92,9 +92,9 @@ if __name__ == "__main__":
     trainer.to_cuda()
 
     # training
-    #trainer.train()
+    trainer.train()
 
-    # evaluation setup
+    # evaluation setup. multi crop 2 x 256x256
     dataloader_train = PASCALvoc2012DataLoader(
         root='./data', train=True, download=True, batch_size=64, shuffle=False, drop_last=False, num_workers=8,
         transforms=[
@@ -109,7 +109,7 @@ if __name__ == "__main__":
             aug_valid(256, 256),
         ]
     )
-    trainer.load("./output_swav/model_14250.pth")
+    trainer.load("/path/to/model/weight.pth")
     trainer.to_cuda()
 
     # predict
@@ -117,8 +117,8 @@ if __name__ == "__main__":
     x_train, y_train = trainer.predict(dataloader_train, is_label=True, sample_size=0)
     print("predict valid")
     x_valid, y_valid = trainer.predict(dataloader_valid, is_label=True, sample_size=0)
-    x_train = x_train[0].mean(axis=1)
-    x_valid = x_valid[0].mean(axis=1)
+    x_train = x_train[0].mean(axis=1) # mean multi crop output
+    x_valid = x_valid[0].mean(axis=1) # mean multi crop output
 
     # knn
     import faiss
