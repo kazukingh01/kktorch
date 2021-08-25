@@ -74,6 +74,7 @@ class ConfigModule(nn.Module):
         in_features      = (self.config.get("in_features") if self.config.get("in_features") is not None else 0) if in_features is None else in_features
         self.user_params["in_features"] = in_features
         self.user_params["__before"]    = in_features
+        self.shared_variables = {}
         if user_parameters is not None and isinstance(user_parameters, dict):
             for x, y in user_parameters.items(): self.user_params[x] = y
         for x, y in self.user_params.items():
@@ -97,6 +98,7 @@ class ConfigModule(nn.Module):
                 kwargs["user_parameters"] = dictwkwk
             print(dictwk["class"], args, kwargs)
             module = getattr(nn, dictwk["class"])(*args, **kwargs)
+            if isinstance(module, nn.EvalModule): module.set_variables(self.shared_variables)
             ## Update out features 
             name_outnode = None
             if   dictwk.get("out_features") is None:
@@ -150,9 +152,9 @@ class ConfigModule(nn.Module):
         """
         Output the value saved from the layer defined by MiddleSaveOutput
         """
-        outpout = [mod.middle_output for mod in self.middle_mod]
+        output = [mod.middle_output for mod in self.middle_mod]
         for mod in self.middle_mod: mod.middle_output = None
-        return outpout
+        return output
     
     def special_word(self, string: str):
         """
@@ -174,10 +176,11 @@ class ConfigModule(nn.Module):
         for module in self.modules():
             if hasattr(module, "is_debug"):
                 module.is_debug = is_debug
+        return self
 
     def normal(self):
         """Don't use it."""
-        self.debug(is_debug=False)
+        return self.debug(is_debug=False)
     
     def forward_debug(self, input: torch.Tensor):
         """
@@ -197,6 +200,12 @@ class ConfigModule(nn.Module):
         self.normal()
         return list_output
 
+    def search_module(self, name: str):
+        for module in self.modules():
+            if isinstance(module, nn.BaseModule):
+                if isinstance(module.name, str) and module.name == name:
+                    return module
+        return None
 
 class SkipConnection(ConfigModule):
     def forward(self, input: torch.Tensor):

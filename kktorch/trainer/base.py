@@ -341,8 +341,10 @@ epoch : {self.epoch}
         return input
     def process_data_valid_aft(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return [input, ] if isinstance(input, torch.Tensor) else input
-    def process_label(self, input: Union[torch.Tensor, List[torch.Tensor]]):
-        return [input, ] if isinstance(input, torch.Tensor) else input
+    def process_label_pre(self, label: Union[torch.Tensor, List[torch.Tensor]], input: Union[torch.Tensor, List[torch.Tensor]]=None):
+        return label
+    def process_label_aft(self, label: Union[torch.Tensor, List[torch.Tensor]], input: Union[torch.Tensor, List[torch.Tensor]]=None):
+        return [label, ] if isinstance(label, torch.Tensor) else label
 
     def processes(
         self, 
@@ -355,18 +357,21 @@ epoch : {self.epoch}
         By default, the output will always be in list format. This is to account for multiple outputs and multiple loss calculations.
         """
         output = None
-        # label proc ##Do not put val_to_gpu after network(input).It slows things down for some reason.
-        if label is not None:
-            label = self.val_to_gpu(self.process_label(label))
         # set pre/after proc based on whether it is training or not.
         proc_pre = self.process_data_valid_pre if is_valid else self.process_data_train_pre
         proc_aft = self.process_data_valid_aft if is_valid else self.process_data_train_aft
-        # pre proc
+        # label pre proc ##Do not put val_to_gpu after network(input).It slows things down for some reason.
+        if label is not None:
+            label = self.val_to_gpu(self.process_label_pre(label, input=input))
+        # input pre proc
         output = self.val_to_gpu(proc_pre(input))
         with autocast(enabled=self.auto_mixed_precision):
             output = self.network(output)
-        # after proc
+        # input after proc
         output = proc_aft(output)
+        # label after proc
+        if label is not None:
+            label = self.val_to_gpu(self.process_label_aft(label, input=output))
         return output, label
     
     def calc_losses(
@@ -402,6 +407,7 @@ epoch : {self.epoch}
                 loss, losses = work(input, label, self.processes, self.losses_valid, is_valid=is_valid)
         else:
             loss, losses = work(input, label, self.processes, self.losses_train, loss_funcs_weight=self.losses_train_weight, is_valid=is_valid)
+        loss = loss / self.accumulation_step
         return loss, losses
     
     def write_tensor_board(self, name: str, value):
@@ -417,23 +423,21 @@ epoch : {self.epoch}
         if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
             logger.info(f"iter: {self.i_epoch}|{self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
         loss, losses = self.calc_losses(input, label, is_valid=False)
-        loss = loss / self.accumulation_step
         self.scaler.scale(loss).backward()
         if hasattr(self.optimizer, "first_step"):
-            # For SUM optimizers
-            if self.iter % self.accumulation_step == 0: self.optimizer.first_step(zero_grad=True)
+            # For SUM optimizers. you can NOT use accumulation step.
+            self.accumulation_step = 1
+            self.optimizer.first_step(zero_grad=True)
             loss, losses = self.calc_losses(input, label, is_valid=False)
-            loss = loss / self.accumulation_step
             self.scaler.scale(loss).backward()
-            if self.iter % self.accumulation_step == 0: self.optimizer.second_step(zero_grad=True)
+            self.optimizer.second_step(zero_grad=True)
         else:
             if self.iter % self.accumulation_step == 0:
                 if self.accumulation_step > 1: logger.info("optimizer step with accumulation.")
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
         if self.scheduler is not None: self.scheduler.step()
-        loss   = self.val_to_cpu(loss)
-        losses = self.val_to_cpu(losses)
+        loss, losses = self.val_to_cpu(loss), self.val_to_cpu(losses)
         logger.info(f'iter: {self.i_epoch}|{self.iter}, train: {loss}, losses: {losses}, time: {(time.perf_counter() - self.time_iter)}, lr: {"No schedule." if self.scheduler is None else self.scheduler.get_last_lr()[0]}')
         self.time_iter = time.perf_counter()
         # tensor board
@@ -452,8 +456,7 @@ epoch : {self.epoch}
         with torch.no_grad():
             # loss calculation
             loss_valid, losses_valid = self.calc_losses(_input, label, is_valid=True)
-            loss_valid   = self.val_to_cpu(loss_valid)
-            losses_valid = self.val_to_cpu(losses_valid)
+            loss_valid, losses_valid = self.val_to_cpu(loss_valid), self.val_to_cpu(losses_valid)
             if i_valid == 0:
                 _loss_save = loss_valid if self.early_stopping_i_valid is None else np.sum(np.array(losses_valid)[self.early_stopping_i_valid])
                 self.loss_valid_hist[self.iter // self.valid_step % self.move_ave_steps] = _loss_save
@@ -507,6 +510,7 @@ epoch : {self.epoch}
     def init_training(self):
         makedirs(self.outdir, exist_ok=True, remake=True)
         self.writer = SummaryWriter(log_dir=self.outdir + "logs")
+        self.network.zero_grad()
 
     def predict(self, dataloader: DataLoader, is_label: bool=False, sample_size: int=-1):
         self.network.eval()

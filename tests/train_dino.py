@@ -1,10 +1,11 @@
+import copy
 import numpy as np
 import torch, kktorch
 from torchvision import transforms
 from kktorch.trainer.base import Trainer
 from kktorch.data.dataloader import PASCALvoc2012DataLoader
 from kktorch.nn.configmod import ConfigModule
-from kktorch.nn.loss import SwAVLoss
+from kktorch.nn.loss import DINOLoss
 from kktorch.util.image.transforms import ResizeFixRatio
 
 
@@ -13,27 +14,36 @@ class MyTrainer(Trainer):
         return [input, ] if isinstance(input, torch.Tensor) else input
     def process_data_valid_pre(self, input):
         return [input, ] if isinstance(input, torch.Tensor) else input
-    def process_data_train_aft(self, input):
-        if self.i_epoch <= 1:
-            self.network.search_module("ParameterModule(cluster_param)").param.requires_grad = False
-        return [input[-1], ]
+    def process_label_aft(self, label, input=None):
+        return [input[1], ]
+
+
+class TeacherStudent(torch.nn.Module):
+    def __init__(self, model: torch.nn.Module):
+        super().__init__()
+        self.student = copy.deepcopy(model)
+        self.teacher = copy.deepcopy(model)
+    def forward(self, input):
+        output_s = self.student(input)
+        with torch.no_grad():
+            output_t = self.teacher(input)
+        return output_s, output_t
 
 
 if __name__ == "__main__":
     # config file
-    fjson = "../kktorch/model_zoo/swav/swav.json"
+    fjson = "../kktorch/model_zoo/dino/dino.json"
 
     # load config file and create network
-    n_projection = 32
-    k_clusters   = 60
+    n_projection = 128
     network = ConfigModule(
         fjson,
         ## You can override the config settings.
         user_parameters={
             "___n_projection": n_projection,
-            "___k_clusters": k_clusters,
         },
     )
+    network = TeacherStudent(network)
 
     def aug_train(sizeA: int, sizeB: int):
         return transforms.Compose([
@@ -41,7 +51,7 @@ if __name__ == "__main__":
             transforms.RandomCrop(sizeB),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.Compose([
-                transforms.RandomApply([transforms.ColorJitter(0.8, 0.8, 0.8, 0.2)], p=0.8),
+                transforms.RandomApply([transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)], p=0.8),
                 transforms.RandomGrayscale(p=0.2),
             ]),
             transforms.ToTensor(),
@@ -61,16 +71,16 @@ if __name__ == "__main__":
             ),
         ])
 
-    # dataloader. multi crop 2 x 256x256, 4 x 128x128
+    # dataloader. multi crop 2 x 224x224, 4 x 96x96
     dataloader_train = PASCALvoc2012DataLoader(
         root='./data', train=True, download=True, batch_size=20, shuffle=True, drop_last=True,
         transforms=[
-            aug_train(256, 256),
-            aug_train(256, 256),
-            aug_train(256, 128),
-            aug_train(256, 128),
-            aug_train(256, 128),
-            aug_train(256, 128),
+            aug_train(224, 224),
+            aug_train(224, 224),
+            aug_train(224,  96),
+            aug_train(224,  96),
+            aug_train(224,  96),
+            aug_train(224,  96),
         ],
         num_workers=8
     )
@@ -78,8 +88,8 @@ if __name__ == "__main__":
     # trainer
     trainer = MyTrainer(
         network,
-        losses_train=SwAVLoss(temperature=0.1, sinkhorn_epsilon=0.05),
-        losses_train_name="swav",
+        losses_train=DINOLoss(temperature=0.1),
+        losses_train_name="dino",
         optimizer={
             "optimizer": torch.optim.AdamW, 
             "params": dict(lr=1e-2)
@@ -94,19 +104,19 @@ if __name__ == "__main__":
     # training
     trainer.train()
 
-    # evaluation setup. multi crop 2 x 256x256
+    # evaluation setup. multi crop 2 x 224x224
     dataloader_train = PASCALvoc2012DataLoader(
         root='./data', train=True, download=True, batch_size=64, shuffle=False, drop_last=False, num_workers=8,
         transforms=[
-            aug_valid(256, 256),
-            aug_valid(256, 256),
+            aug_valid(224, 224),
+            aug_valid(224, 224),
         ],
     )
     dataloader_valid = PASCALvoc2012DataLoader(
         root='./data', train=False, download=True, batch_size=64, shuffle=False, drop_last=False, num_workers=8,
         transforms=[
-            aug_valid(256, 256),
-            aug_valid(256, 256),
+            aug_valid(224, 224),
+            aug_valid(224, 224),
         ]
     )
     trainer.load("/path/to/model/weight.pth")

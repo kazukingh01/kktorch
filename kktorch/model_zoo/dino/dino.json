@@ -1,0 +1,56 @@
+{
+    "name": "dino",
+    "user_parameters": {
+        "___n_projection": 128,
+        "___n_timm_dim": 384
+    },
+    "network": [
+        {
+            "class": "ApplyModule",
+            "args": {
+                "name": "backbone",
+                "network": [
+                    {
+                        "class": "SharedVariablesModule",
+                        "args": "{'n_aug': input.shape[1]}"
+                    },
+                    {
+                        "class": "EvalModule",
+                        "args": "input.reshape(-1,*input.shape[-3:])"
+                    },
+                    {
+                        "class": "TimmModule",
+                        "args": "vit_small_patch32_224",
+                        "kwargs": {
+                            "pretrained": false,
+                            "set_ident_layers": ["head"]
+                        }
+                    },
+                    {
+                        "class": "EvalModule",
+                        "args": "input.reshape(-1, variables['n_aug'], input.shape[-1])"
+                    },
+                    {
+                        "class": "EinsumInput",
+                        "args": "bnd->nbd"
+                    }
+                ]
+            }
+        },
+        {
+            "class": "AggregateInput",
+            "args": "cat",
+            "kwargs": {
+                "dim": 0
+            }
+        },
+        {
+            "class": "EinsumInput",
+            "args": "nbd->bnd"
+        },
+        {
+            "class": "Linear",
+            "args": ["___n_timm_dim", "___n_projection"]
+        }
+    ]
+}

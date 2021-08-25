@@ -7,32 +7,49 @@ __all__ = [
     "CrossEntropyAcrossLoss",
     "CrossEntropySmoothingLoss",
     "SwAVLoss",
+    "DINOLoss",
 ]
 
 
-class Accuracy(_Loss):
-    def __init__(self, threshold: float=0.5):
+class BaseLoss(_Loss):
+    def __init__(self, reduction="mean", is_check_everytime: bool=True):
+        assert isinstance(reduction, str) and reduction in ["mean", "sum"]
         super().__init__()
-        self.threshold = threshold
         self.is_check = True
-    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        if self.is_check:
-            assert isinstance(input,  torch.Tensor)
-            assert isinstance(target, torch.Tensor)
-            if len(input.shape) == 1:
-                assert len(target.shape) == 1
-                assert input.shape[0] == target.shape[0]
-            elif len(input.shape) == 2:
-                assert target.dtype == torch.long
-                assert len(target.shape) == 1
-                assert input.shape[-1] >= torch.max(target)
+        self.is_check_everytime = is_check_everytime
+        self.output_reduction   = torch.mean if self.reduction == "mean" else torch.sum
+    def forward(self, *args, **kwargs):
+        if self.is_check_everytime or self.is_check:
+            self.check(*args, **kwargs)
             self.is_check = False
+        return self.output_reduction(self.forward_child(*args, **kwargs))
+    def check(self): pass
+    def forward_child(self):
+        raise NotImplementedError
+
+
+class Accuracy(BaseLoss):
+    def __init__(self, threshold: float=0.5, is_check_everytime=False):
+        super().__init__(reduction="mean", is_check_everytime=is_check_everytime)
+        self.threshold = threshold
+    def check(self, input: torch.Tensor, target: torch.Tensor):
+        assert isinstance(input,  torch.Tensor)
+        assert isinstance(target, torch.Tensor)
         if len(input.shape) == 1:
-            output = target.to(torch.bool) == (input > self.threshold)
+            assert len(target.shape) == 1
+            assert input.shape[0] == target.shape[0]
+        elif len(input.shape) == 2:
+            assert target.dtype == torch.long
+            assert len(target.shape) == 1
+            assert input.shape[-1] >= torch.max(target)
+    def forward_child(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        if len(input.shape) == 1:
+            output = (target.to(torch.bool) == (input > self.threshold))
         elif len(input.shape) == 2:
             output = torch.max(input, dim=-1)[1]
-            output = output == target
-        return torch.sum(output) / target.shape[0]
+            output = (output == target)
+        output = output.to(torch.float32)
+        return output
 
 
 class CrossEntropyAcrossLoss(torch.nn.CrossEntropyLoss):
@@ -43,22 +60,18 @@ class CrossEntropyAcrossLoss(torch.nn.CrossEntropyLoss):
             return super().forward(input.reshape(-1, self.embedding_dim), target.reshape(-1))
 
 
-class CrossEntropySmoothingLoss(_Loss):
-    def __init__(self, classes: int, smoothing: float=0.0, reduction: str='mean', ignore_index: int=-100):
+class CrossEntropySmoothingLoss(BaseLoss):
+    def __init__(self, classes: int, smoothing: float=0.0, reduction: str='mean', ignore_index: int=-100, is_check_everytime=False):
         assert isinstance(classes, int) and classes > 1
-        assert isinstance(reduction, str) and reduction in ["mean", "sum"]
-        super(CrossEntropySmoothingLoss, self).__init__(reduction=reduction)
+        super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
         self.confidence   = 1.0 - smoothing
         self.smoothing    = smoothing
         self.classes      = classes
         self.ignore_index = ignore_index
-        self.output_reduction = torch.mean if self.reduction == "mean" else torch.sum
-        self.is_check = True
-    def forward(self, input: torch.Tensor, target: torch.Tensor):
-        if self.is_check:
-            assert isinstance(input,  torch.Tensor) and len( input.shape) >= 2
-            assert isinstance(target, torch.Tensor) and len(target.shape) == 1
-            self.is_check = False
+    def check(self, input: torch.Tensor, target: torch.Tensor):
+        assert isinstance(input,  torch.Tensor) and len( input.shape) >= 2
+        assert isinstance(target, torch.Tensor) and len(target.shape) == 1
+    def forward_child(self, input: torch.Tensor, target: torch.Tensor):
         input = input.log_softmax(dim=-1)
         true_dist = None
         with torch.no_grad():
@@ -67,46 +80,46 @@ class CrossEntropySmoothingLoss(_Loss):
             true_dist.scatter_(1, target.data.unsqueeze(1), self.confidence)
         output = torch.sum(-true_dist * input, dim=-1)
         output = output[target != self.ignore_index]
-        return self.output_reduction(output)
+        return output
 
 
-class SwAVLoss(_Loss):
+class SwAVLoss(BaseLoss):
     def __init__(
-        self, temperature: float=0.1, 
-        sinkhorn_repeat: int=3, sinkhorn_epsilon: float=0.05, 
-        reduction: str='mean'
+        self, temperature: float=0.1, sinkhorn_epsilon=0.05, sinkhorn_repeat: int=3,
+        reduction: str='mean', is_check_everytime=False
     ):
-        super().__init__()
+        super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
         self.temperature      = temperature
         self.sinkhorn_repeat  = sinkhorn_repeat
         self.sinkhorn_epsilon = sinkhorn_epsilon
         self.log_softmax      = torch.nn.functional.log_softmax
-        self.reduction        = reduction
-        self.output_reduction = torch.mean if self.reduction == "mean" else torch.sum
-    def forward(self, input: torch.Tensor, *args):
+    def check(self, input: torch.Tensor, *args):
+        assert isinstance(input, torch.Tensor) and len(input.shape) == 3
+    def forward_child(self, input: torch.Tensor, *args):
         """
         input: shape(Batch, N_Aug, K_cluster)
-            # index starts from 1
+            # assume index starts from 1
             input[:,   1, :] ---> t1 Global Views
             input[:,   2, :] ---> t2 Global Views
             input[:,   3, :] ---> t3 Additional Small Views
             ...
             input[:, V+2, :] ---> tV+2 Additional Small Views
         """
-        tens_zt = torch.einsum("abc->bac", input) # N_Aug, Batch, K_cluster
+        tens_zt = torch.einsum("abc->bac", input) # N_Aug, B_Batch, K_cluster
         with torch.no_grad():
             tens_zs  = tens_zt[:2].clone()
-            tens_qs  = self.sinkhorn(tens_zs).detach()
-            tens_qs1 = tens_qs[0].repeat(tens_zt.shape[0] - 1, 1, 1)
-            tens_qs2 = tens_qs[1].repeat(tens_zt.shape[0] - 1, 1, 1)
+            tens_qs  = self.sinkhorn(tens_zs)
+            tens_qs1 = tens_qs[0].repeat(tens_zt.shape[0] - 1, 1, 1).detach()
+            tens_qs2 = tens_qs[1].repeat(tens_zt.shape[0] - 1, 1, 1).detach()
         tens_pt = self.log_softmax(tens_zt / self.temperature, dim=2)
         loss1   = (-1 * tens_qs1 * torch.cat([tens_pt[1:2], tens_pt[2:]], dim=0)).sum(dim=2)
         loss2   = (-1 * tens_qs2 * torch.cat([tens_pt[0:1], tens_pt[2:]], dim=0)).sum(dim=2)
         loss    = torch.cat([loss1.reshape(-1), loss2.reshape(-1)], dim=0)
-        return self.output_reduction(loss) / (2 * (tens_zt.shape[0] - 2))
+        loss    = loss / (2 * (tens_zt.shape[0] - 2))
+        return loss
     def sinkhorn(self, tens_zs: torch.Tensor):
         """
-        tens_zs: shape(N_Aug, Batch, K_cluster)
+        tens_zs: shape(N_Aug, B_Batch, K_cluster)
         """
         Q = torch.exp(tens_zs / self.sinkhorn_epsilon).T
         Q = Q / torch.sum(Q, dim=(0,1))
@@ -119,3 +132,40 @@ class SwAVLoss(_Loss):
             Q = Q * (c / torch.sum(Q, dim=0)).unsqueeze(0)
         Q = Q / torch.sum(Q, dim=0, keepdim=True)
         return Q.T
+
+
+class DINOLoss(BaseLoss):
+    def __init__(self, temperature: float=0.1, reduction: str='mean', is_check_everytime=False):
+        super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
+        self.temperature = temperature
+        self.vec_center  = None
+        self.softmax     = torch.nn.functional.softmax
+    def check(self, input: torch.Tensor, target: torch.Tensor):
+        assert isinstance(input,  torch.Tensor) and len(input. shape) == 3
+        assert isinstance(target, torch.Tensor) and len(target.shape) == 3
+        assert input.shape == target.shape
+        if self.vec_center is None:
+            self.vec_center = torch.zeros(input.shape[-1], requires_grad=False)
+    def forward_child(self, input: torch.Tensor, target: torch.Tensor):
+        """
+        input: shape(B_Batch, N_Aug, D_Dimension)
+            # assume index starts from 1
+            input[:,   1, :] ---> t1 Global Views
+            input[:,   2, :] ---> t2 Global Views
+            input[:,   3, :] ---> t3 Additional Small Views
+            ...
+            input[:, V+2, :] ---> tV+2 Additional Small Views
+        """
+        target = target.detach()[:, :2]
+        input  = torch.einsum("abc->bac", input ) # N_Aug, B_Batch, K_cluster
+        target = torch.einsum("abc->bac", target) # N_Aug, B_Batch, K_cluster
+        with torch.no_grad():
+            output_t  = self.softmax((target - self.vec_center) / self.temperature, dim=-1)
+            output_t1 = output_t[0].repeat(output_t.shape[0] - 1, 1, 1)
+            output_t2 = output_t[1].repeat(output_t.shape[0] - 1, 1, 1)
+        output_s = torch.log(self.softmax(input / self.temperature, dim=-1))
+        loss1    = (-1 * output_t1 * torch.cat([output_s[1:2], output_s[2:]], dim=0)).sum(dim=2)
+        loss2    = (-1 * output_t2 * torch.cat([output_s[0:1], output_s[2:]], dim=0)).sum(dim=2)
+        loss     = torch.cat([loss1.reshape(-1), loss2.reshape(-1)], dim=0)
+        loss     = loss / (2 * (target.shape[0] - 2))
+        return loss
