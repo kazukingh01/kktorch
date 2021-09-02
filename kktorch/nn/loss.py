@@ -1,3 +1,4 @@
+from typing import List
 import torch
 from torch.nn.modules.loss import _Loss
 
@@ -84,6 +85,9 @@ class CrossEntropySmoothingLoss(BaseLoss):
 
 
 class SwAVLoss(BaseLoss):
+    """
+    see: https://arxiv.org/abs/2006.09882
+    """
     def __init__(
         self, temperature: float=0.1, sinkhorn_epsilon=0.05, sinkhorn_repeat: int=3,
         reduction: str='mean', is_check_everytime=False
@@ -109,8 +113,8 @@ class SwAVLoss(BaseLoss):
         with torch.no_grad():
             tens_zs  = tens_zt[:2].clone()
             tens_qs  = self.sinkhorn(tens_zs)
-            tens_qs1 = tens_qs[0].repeat(tens_zt.shape[0] - 1, 1, 1).detach()
-            tens_qs2 = tens_qs[1].repeat(tens_zt.shape[0] - 1, 1, 1).detach()
+            tens_qs1 = tens_qs[0].expand(tens_zt.shape[0] - 1, -1, -1).detach()
+            tens_qs2 = tens_qs[1].expand(tens_zt.shape[0] - 1, -1, -1).detach()
         tens_pt = self.log_softmax(tens_zt / self.temperature, dim=2)
         loss1   = (-1 * tens_qs1 * torch.cat([tens_pt[1:2], tens_pt[2:]], dim=0)).sum(dim=2)
         loss2   = (-1 * tens_qs2 * torch.cat([tens_pt[0:1], tens_pt[2:]], dim=0)).sum(dim=2)
@@ -135,20 +139,27 @@ class SwAVLoss(BaseLoss):
 
 
 class DINOLoss(BaseLoss):
-    def __init__(self, temperature: float=0.1, reduction: str='mean', is_check_everytime=False):
+    """
+    see: https://arxiv.org/abs/2104.14294
+    """
+    def __init__(self, temperature_s: float=0.1, temperature_t: float=0.04, update_rate: float=0.9, reduction: str='mean', is_check_everytime=False):
         super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
-        self.temperature = temperature
-        self.vec_center  = None
-        self.softmax     = torch.nn.functional.softmax
+        self.temperature_s = temperature_s
+        self.temperature_t = temperature_t
+        self.vec_center    = None
+        self.update_rate   = update_rate
+        self.softmax       = torch.nn.functional.softmax
+        self.log_softmax   = torch.nn.functional.log_softmax
     def check(self, input: torch.Tensor, target: torch.Tensor):
         assert isinstance(input,  torch.Tensor) and len(input. shape) == 3
         assert isinstance(target, torch.Tensor) and len(target.shape) == 3
         assert input.shape == target.shape
         if self.vec_center is None:
-            self.vec_center = torch.zeros(input.shape[-1], requires_grad=False)
+            self.vec_center = torch.zeros(input.shape[-1], requires_grad=False).to(input.device)
     def forward_child(self, input: torch.Tensor, target: torch.Tensor):
         """
-        input: shape(B_Batch, N_Aug, D_Dimension)
+        input: List of torch.Tensor, [tensor_student: torch.Tensor, tensor_teacher: torch.Tensor]
+            shape(B_Batch, N_Aug, D_Dimension)
             # assume index starts from 1
             input[:,   1, :] ---> t1 Global Views
             input[:,   2, :] ---> t2 Global Views
@@ -156,16 +167,17 @@ class DINOLoss(BaseLoss):
             ...
             input[:, V+2, :] ---> tV+2 Additional Small Views
         """
-        target = target.detach()[:, :2]
-        input  = torch.einsum("abc->bac", input ) # N_Aug, B_Batch, K_cluster
-        target = torch.einsum("abc->bac", target) # N_Aug, B_Batch, K_cluster
+        input  = input.permute(1,0,2) # N_Aug, B_Batch, D_Dimension
         with torch.no_grad():
-            output_t  = self.softmax((target - self.vec_center) / self.temperature, dim=-1)
-            output_t1 = output_t[0].repeat(output_t.shape[0] - 1, 1, 1)
-            output_t2 = output_t[1].repeat(output_t.shape[0] - 1, 1, 1)
-        output_s = torch.log(self.softmax(input / self.temperature, dim=-1))
+            target    = target.detach()[:, :2, :].permute(1,0,2) # N_Aug, B_Batch, D_Dimension
+            output_t  = self.softmax((target - self.vec_center) / self.temperature_t, dim=-1)
+            output_t1 = output_t[0].expand(input.shape[0] - 1, -1, -1)
+            output_t2 = output_t[1].expand(input.shape[0] - 1, -1, -1)
+        output_s = self.log_softmax(input / self.temperature_s, dim=-1)
         loss1    = (-1 * output_t1 * torch.cat([output_s[1:2], output_s[2:]], dim=0)).sum(dim=2)
         loss2    = (-1 * output_t2 * torch.cat([output_s[0:1], output_s[2:]], dim=0)).sum(dim=2)
         loss     = torch.cat([loss1.reshape(-1), loss2.reshape(-1)], dim=0)
-        loss     = loss / (2 * (target.shape[0] - 2))
+        loss     = loss / (2 * (input.shape[0] - 2))
+        with torch.no_grad():
+            self.vec_center = self.vec_center.mul(self.update_rate) + target.mean(dim=(0,1)).mul(1 - self.update_rate)
         return loss

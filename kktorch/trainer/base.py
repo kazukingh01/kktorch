@@ -43,7 +43,7 @@ class Trainer:
         # dataloader
         dataloader_train: DataLoader=None, dataloader_valids: List[DataLoader]=[],
         # training parameter
-        epoch: int=1, accumulation_step: int=1,
+        epoch: int=1, accumulation_step: int=1, clip_grad: float=0.0,
         # validation parameter
         valid_step: int=-1, early_stopping_rounds: int=-1, early_stopping_min_iter: int=-1, 
         move_ave_steps: int=1, early_stopping_i_valid: Union[int, List[int]]=None,
@@ -123,6 +123,7 @@ class Trainer:
         # training
         self.epoch             = epoch
         self.accumulation_step = accumulation_step
+        self.clip_grad         = clip_grad
         # validation
         self.valid_step              = valid_step
         self.early_stopping_rounds   = early_stopping_rounds
@@ -223,6 +224,7 @@ epoch : {self.epoch}
         if self.early_stopping_i_valid is not None:
             assert check_type_list(self.early_stopping_i_valid, int)
         assert isinstance(self.auto_mixed_precision, bool)
+        assert isinstance(self.clip_grad, float) and self.clip_grad >= 0
 
     def initialize(self):
         logger.info("trainer parameter initialize.")
@@ -367,11 +369,11 @@ epoch : {self.epoch}
         output = self.val_to_gpu(proc_pre(input))
         with autocast(enabled=self.auto_mixed_precision):
             output = self.network(output)
-        # input after proc
-        output = proc_aft(output)
         # label after proc
         if label is not None:
             label = self.val_to_gpu(self.process_label_aft(label, input=output))
+        # input after proc
+        output = proc_aft(output)
         return output, label
     
     def calc_losses(
@@ -415,11 +417,15 @@ epoch : {self.epoch}
             value = value.detach().to("cpu").item()
         self.writer.add_scalar(name, value, self.iter)
     
+    def preproc_update_weight(self): pass
+    def aftproc_update_weight(self): pass
+    
     def _train_step(self, input: Union[torch.Tensor, List[torch.Tensor]], label: Union[torch.Tensor, List[torch.Tensor]]):
         self.iter += 1
         self.network.train() # train() and eval() need to be distinguished when Dropout Layer is present
         if (self.iter - 1) % self.accumulation_step == 0:
             self.network.zero_grad()
+            self.preproc_update_weight()
         if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
             logger.info(f"iter: {self.i_epoch}|{self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
         loss, losses = self.calc_losses(input, label, is_valid=False)
@@ -434,8 +440,10 @@ epoch : {self.epoch}
         else:
             if self.iter % self.accumulation_step == 0:
                 if self.accumulation_step > 1: logger.info("optimizer step with accumulation.")
+                if self.clip_grad > 0: torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.clip_grad)
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+                self.aftproc_update_weight()
         if self.scheduler is not None: self.scheduler.step()
         loss, losses = self.val_to_cpu(loss), self.val_to_cpu(losses)
         logger.info(f'iter: {self.i_epoch}|{self.iter}, train: {loss}, losses: {losses}, time: {(time.perf_counter() - self.time_iter)}, lr: {"No schedule." if self.scheduler is None else self.scheduler.get_last_lr()[0]}')

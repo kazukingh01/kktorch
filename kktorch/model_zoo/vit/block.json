@@ -1,0 +1,110 @@
+{
+    "name": "block",
+    "user_parameters": {
+        "___n_dim": 512,
+        "___n_head": 8,
+        "___dropout_p": 0.0
+    },
+    "network": [
+        {
+            "class": "SkipConnection",
+            "args": {
+                "name": "selfattn",
+                "network": [
+                    {
+                        "class": "LayerNorm",
+                        "args": "___n_dim"
+                    },
+                    {
+                        "class": "Linear",
+                        "args": ["___n_dim", "___n_dim * 3"],
+                        "kwargs": {"bias": false}
+                    },
+                    {
+                        "class": "SharedVariablesModule",
+                        "args": "{'n_seq': input.shape[1]}"
+                    },
+                    {
+                        "class": "EvalModule",
+                        "args": "input.reshape(-1, variables['n_seq'], 3, ___n_dim).permute(1,0,2,3)"
+                    },
+                    {
+                        "class": "EvalModule",
+                        "args": "input[:, :, 0, :], input[:, :, 1, :], input[:, :, 2, :]"
+                    },
+                    {
+                        "class": "TorchModule",
+                        "args": "MultiheadAttention",
+                        "kwargs": {
+                            "nn_args": ["___n_dim", "___n_head"],
+                            "nn_kwargs": {
+                                "dropout": "___dropout_p",
+                                "bias": false,
+                                "add_bias_kv": false,
+                                "add_zero_attn": false,
+                                "kdim": null,
+                                "vdim": null
+                            },
+                            "input_type": "*"
+                        }
+                    },
+                    {
+                        "class": "SelectIndexListInput",
+                        "args": 0
+                    },
+                    {
+                        "class": "EvalModule",
+                        "args": "input.permute(1,0,2)"
+                    },
+                    {
+                        "class": "DropBatch",
+                        "kwargs": {
+                            "p": "___dropout_p"
+                        }
+                    }
+                ]
+            }
+       },
+       {
+            "class": "SkipConnection",
+            "args": {
+                "name": "mlp",
+                "network": [
+                    {
+                        "class": "LayerNorm",
+                        "args": "___n_dim"
+                    },
+                    {
+                        "class": "Linear",
+                        "args": ["___n_dim", "___n_dim * 4"]
+                    },
+                    {
+                        "class": "GELU"
+                    },
+                    {
+                        "class": "Dropout",
+                        "kwargs": {
+                            "p": "___dropout_p"
+                        }
+                    },
+                    {
+                        "class": "Linear",
+                        "args": ["___n_dim * 4", "___n_dim"]
+                    },
+                    {
+                        "class": "Dropout",
+                        "kwargs": {
+                            "p": "___dropout_p"
+                        }
+                    },
+                    {
+                        "class": "DropBatch",
+                        "kwargs": {
+                            "p": "___dropout_p"
+                        }
+                    }
+                ]
+            }
+        }
+   ]
+}

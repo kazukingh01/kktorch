@@ -12,11 +12,11 @@
                 "network": [
                     {
                         "class": "Linear",
-                        "args": ["__before", "__before // 2"]
+                        "args": ["in_features", "in_features // 2"]
                     },
                     {
                         "class": "BatchNorm1d",
-                        "args": "__before"
+                        "args": "in_features // 2"
                     },
                     {
                         "class": "GELU"
@@ -29,17 +29,14 @@
                     },
                     {
                         "class": "Linear",
-                        "args": ["__before", "__before * 2"]
+                        "args": ["in_features // 2", "in_features"]
                     }
                 ]
-            },
-            "kwargs": {
-                "in_features": "__before"
             }
         },
         {
             "class": "BatchNorm1d",
-            "args": "__before"
+            "args": "in_features"
         },
         {
             "class": "GELU"

@@ -1,8 +1,13 @@
 {
     "name": "dino",
     "user_parameters": {
-        "___n_projection": 128,
-        "___n_timm_dim": 384
+        "___n_layer": 12,
+        "___n_dim": 192,
+        "___n_head": 3,
+        "___dropout_p": 0.0,
+        "___patch_size": 16,
+        "___img_size": 224,
+        "___n_projection": 64
     },
     "network": [
         {
@@ -19,20 +24,12 @@
                         "args": "input.reshape(-1,*input.shape[-3:])"
                     },
                     {
-                        "class": "TimmModule",
-                        "args": "vit_small_patch32_224",
-                        "kwargs": {
-                            "pretrained": false,
-                            "set_ident_layers": ["head"]
-                        }
+                        "class": "ConfigModule",
+                        "args": "../vit/vit.json"
                     },
                     {
                         "class": "EvalModule",
-                        "args": "input.reshape(-1, variables['n_aug'], input.shape[-1])"
-                    },
-                    {
-                        "class": "EinsumInput",
-                        "args": "bnd->nbd"
+                        "args": "input.reshape(-1, variables['n_aug'], *input.shape[1:])"
                     }
                 ]
             }
@@ -41,16 +38,12 @@
             "class": "AggregateInput",
             "args": "cat",
             "kwargs": {
-                "dim": 0
+                "dim": 1
             }
         },
         {
-            "class": "EinsumInput",
-            "args": "nbd->bnd"
-        },
-        {
             "class": "Linear",
-            "args": ["___n_timm_dim", "___n_projection"]
+            "args": ["___n_dim", "___n_projection"]
         }
     ]
 }

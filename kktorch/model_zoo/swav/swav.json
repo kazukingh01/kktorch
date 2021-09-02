@@ -30,10 +30,6 @@
                     {
                         "class": "EvalModule",
                         "args": "input.reshape(-1, variables['n_aug'], input.shape[-1])"
-                    },
-                    {
-                        "class": "EinsumInput",
-                        "args": "bnd->nbd"
                     }
                 ]
             }
@@ -42,12 +38,8 @@
             "class": "AggregateInput",
             "args": "cat",
             "kwargs": {
-                "dim": 0
+                "dim": 1
             }
-        },
-        {
-            "class": "EinsumInput",
-            "args": "nbd->bnd"
         },
         {
             "class": "SharedVariablesModule",

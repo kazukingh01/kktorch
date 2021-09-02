@@ -1,6 +1,11 @@
 {
     "name": "layer",
     "in_features": 128,
+    "user_parameters": {
+        "___n_trees": 128,
+        "___depth": 4,
+        "___n_classes": 3
+    },
     "network": [
         {
             "class": "ParameterModule",

@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+from PIL import Image 
 import torch, kktorch
 from torchvision import transforms
 from kktorch.trainer.base import Trainer
@@ -8,62 +9,94 @@ from kktorch.nn.configmod import ConfigModule
 from kktorch.nn.loss import DINOLoss
 from kktorch.util.image.transforms import ResizeFixRatio
 
+from torch.nn import MultiheadAttention
+from torch.nn.functional import multi_head_attention_forward
+from torch.nn.init import trunc_normal_
+import torch.nn.utils.clip_grad
 
 class MyTrainer(Trainer):
     def process_data_train_pre(self, input):
         return [input, ] if isinstance(input, torch.Tensor) else input
     def process_data_valid_pre(self, input):
         return [input, ] if isinstance(input, torch.Tensor) else input
-    def process_label_aft(self, label, input=None):
+    def process_data_train_aft(self, input):
+        return [input[0], ]
+    def process_data_valid_aft(self, input):
+        return [input[0], ]
+    def process_label_aft(self, label, input):
         return [input[1], ]
+    def aftproc_update_weight(self):
+        self.network.update_teacher_weight()
+
+
+class MyPredictor(Trainer):
+    def process_data_train_pre(self, input):
+        return [input, ] if isinstance(input, torch.Tensor) else input
+    def process_data_valid_pre(self, input):
+        return [input, ] if isinstance(input, torch.Tensor) else input
+    def process_data_train_aft(self, input):
+        return [input[0], ]
+    def process_data_valid_aft(self, input):
+        return [input[0], ]
 
 
 class TeacherStudent(torch.nn.Module):
-    def __init__(self, model: torch.nn.Module):
+    def __init__(self, model: torch.nn.Module, update_rate: float=0.9):
         super().__init__()
         self.student = copy.deepcopy(model)
         self.teacher = copy.deepcopy(model)
+        for p in self.teacher.parameters(): p.requires_grad = False
+        self.update_rate = update_rate
     def forward(self, input):
         output_s = self.student(input)
         with torch.no_grad():
             output_t = self.teacher(input)
         return output_s, output_t
+    def parameters(self, recurse: bool = True):
+        return self.student.parameters(recurse=recurse)
+    def update_teacher_weight(self):
+        with torch.no_grad():
+            for param_s, param_t in zip(self.student.parameters(), self.teacher.parameters()):
+                param_t.data.mul_(self.update_rate).add_((1 - self.update_rate) * param_s.detach().data)
 
 
 if __name__ == "__main__":
     # config file
-    fjson = "../kktorch/model_zoo/dino/dino.json"
+    fjson = "../kktorch/model_zoo/dino/dino_vit.json"
 
     # load config file and create network
-    n_projection = 128
     network = ConfigModule(
         fjson,
         ## You can override the config settings.
         user_parameters={
-            "___n_projection": n_projection,
+            "___n_layer": 12,
+            "___n_dim": 256,
+            "___n_head": 4,
+            "___dropout_p": 0.0,
+            "___patch_size": 16,
+            "___img_size": 224,
+            "___n_projection": 64
         },
     )
-    network = TeacherStudent(network)
+    network = TeacherStudent(network, update_rate=0.996)
 
-    def aug_train(sizeA: int, sizeB: int):
+    def aug_train(size: int, scale=(0.4, 1.0), p_blue: float=1.0, p_sol: float=0.0):
         return transforms.Compose([
-            ResizeFixRatio(sizeA, "min", is_check_everytime=False), 
-            transforms.RandomCrop(sizeB),
+            transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.Compose([
-                transforms.RandomApply([transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)], p=0.8),
-                transforms.RandomGrayscale(p=0.2),
-            ]),
+            transforms.RandomApply([transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([transforms.GaussianBlur(3)], p=p_blue),
+            transforms.RandomSolarize(128.0, p=p_sol),
             transforms.ToTensor(),
             transforms.Normalize(
                 PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
                 PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_STD
             ),
         ])
-    def aug_valid(sizeA: int, sizeB: int):
+    def aug_valid(size: int, scale=(0.4, 1.0)):
         return transforms.Compose([
-            ResizeFixRatio(sizeA, "min", is_check_everytime=False), 
-            transforms.RandomCrop(sizeB),
+            transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
             transforms.ToTensor(),
             transforms.Normalize(
                 PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
@@ -73,29 +106,29 @@ if __name__ == "__main__":
 
     # dataloader. multi crop 2 x 224x224, 4 x 96x96
     dataloader_train = PASCALvoc2012DataLoader(
-        root='./data', train=True, download=True, batch_size=20, shuffle=True, drop_last=True,
+        root='./data', train=True, download=True, batch_size=16, shuffle=True, drop_last=True,
         transforms=[
-            aug_train(224, 224),
-            aug_train(224, 224),
-            aug_train(224,  96),
-            aug_train(224,  96),
-            aug_train(224,  96),
-            aug_train(224,  96),
+            aug_train(224, scale=(0.4, 1.0),  p_blue=1.0, p_sol=0.0),
+            aug_train(224, scale=(0.4, 1.0),  p_blue=0.1, p_sol=0.2),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
         ],
-        num_workers=8
+        num_workers=4
     )
 
     # trainer
     trainer = MyTrainer(
         network,
-        losses_train=DINOLoss(temperature=0.1),
+        losses_train=DINOLoss(temperature_s=0.1, temperature_t=0.04, update_rate=0.9),
         losses_train_name="dino",
         optimizer={
             "optimizer": torch.optim.AdamW, 
-            "params": dict(lr=1e-2)
+            "params": dict(lr=5e-4)
         }, 
         dataloader_train=dataloader_train,
-        epoch=50, print_step=200, auto_mixed_precision=True, accumulation_step=1
+        epoch=50, print_step=50, auto_mixed_precision=False, accumulation_step=1, clip_grad=3.0
     )
 
     # to cuda
@@ -106,43 +139,36 @@ if __name__ == "__main__":
 
     # evaluation setup. multi crop 2 x 224x224
     dataloader_train = PASCALvoc2012DataLoader(
-        root='./data', train=True, download=True, batch_size=64, shuffle=False, drop_last=False, num_workers=8,
+        root='./data', train=True, download=True, batch_size=48, shuffle=False, drop_last=False, num_workers=8,
         transforms=[
-            aug_valid(224, 224),
-            aug_valid(224, 224),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
         ],
     )
     dataloader_valid = PASCALvoc2012DataLoader(
         root='./data', train=False, download=True, batch_size=64, shuffle=False, drop_last=False, num_workers=8,
         transforms=[
-            aug_valid(224, 224),
-            aug_valid(224, 224),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
         ]
     )
-    trainer.load("/path/to/model/weight.pth")
-    trainer.to_cuda()
+
+    #trainer.load("/path/to/model/weight.pth")
+    predictor = MyPredictor(network, auto_mixed_precision=True)
+    predictor.load("save_output_dino_vit_lr1/model_7900.pth")
+    predictor.to_cuda()
 
     # predict
-    x_train, y_train = trainer.predict(dataloader_train, is_label=True, sample_size=0)
-    """
-    >>> x_train[0]
-    array([[[-0.53202677,  0.04835039, -0.00055272, ...,  0.09932363,
-            0.45389313, -0.00763132],
-            [-0.5514341 ,  0.06276986,  0.00674734, ...,  0.12609968,
-            0.4591551 , -0.01237479]],
-        ...,
-        [[-0.14429946,  0.05713231,  0.00286166, ..., -0.02261793,
-            0.1281438 ,  0.01483384],
-            [-0.22170353,  0.05151182, -0.00398395, ...,  0.00851832,
-            0.19584277,  0.02191174]]], dtype=float32)
-    >>> x_train[0].shape
-    (5717, 2, 32)
-    """
-    x_valid, y_valid = trainer.predict(dataloader_valid, is_label=True, sample_size=0)
-    x_train = x_train[0].mean(axis=1) # mean multi crop output
-    x_valid = x_valid[0].mean(axis=1) # mean multi crop output
+    x_train, y_train = predictor.predict(dataloader_train, is_label=True, sample_size=0)
+    x_valid, y_valid = predictor.predict(dataloader_valid, is_label=True, sample_size=0)
+    x_train = x_train.mean(axis=1) # mean multi crop output
+    x_valid = x_valid.mean(axis=1) # mean multi crop output
 
-    # knn
+        # knn
     import faiss
     index = faiss.IndexFlatL2(x_train.shape[-1])
     index.add(x_train.astype(np.float32))

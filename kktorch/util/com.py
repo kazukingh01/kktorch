@@ -10,6 +10,7 @@ __all__ =[
     "convert_1d_array",
     "makedirs",
     "get_file_list",
+    "replace_sp_str_and_eval",
 ]
 
 
@@ -101,3 +102,25 @@ def get_file_list(dirpath: str, regex_list: List[str]=[]) -> List[str]:
     for regstr in regex_list:
         file_list += list(filter(lambda x: len(re.findall(regstr, x)) > 0, file_list_org))
     return file_list if len(regex_list) > 0 else file_list_org
+
+def replace_sp_str_and_eval(obj, dict_sp_str: dict):
+    def work(_obj, _dict: dict):
+        if isinstance(_obj, str):
+            try:
+                out = eval(_obj, copy.deepcopy(_dict)) # need copy.deepcopy
+                if check_type(out, [int, float, str, list, dict, tuple]):
+                    return out
+                else:
+                    return _obj
+            except (NameError, SyntaxError, TypeError, AttributeError):
+                for x, y in _dict.items():
+                    if _obj.find(x) >= 0: _obj = _obj.replace(x, str(y)) # ex) "(___AAA)" -> "(10)"
+                return _obj
+        else:
+            return _obj
+    if   isinstance(obj, list) or isinstance(obj, tuple):
+        return [replace_sp_str_and_eval(x, dict_sp_str) for x in obj]
+    elif isinstance(obj, dict):
+        return {x: replace_sp_str_and_eval(y, dict_sp_str) for x, y in obj.items()}
+    else:
+        return work(obj, dict_sp_str)

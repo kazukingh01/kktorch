@@ -2,6 +2,7 @@ import os, json, copy, time
 import torch
 from kktorch import nn
 from typing import Union, List
+from kktorch.util.com import replace_sp_str_and_eval
 
 
 __all__ = [
@@ -66,27 +67,26 @@ class ConfigModule(nn.Module):
                     grad_fn=<ReluBackward0>)
         """
         super().__init__()
-        self.config      = json.load(open(dir_base_path + config)) if isinstance(config, str) else config
+        fname = (dir_base_path + config) if isinstance(config, str) and config[-5:] == ".json" else None
+        self.config      = json.load(open(fname)) if fname is not None else config
         self.name        = self.config["name"]
-        self.dirpath     = dir_base_path + os.path.dirname(config) + "/" if isinstance(config, str) else dir_base_path
+        self.dirpath     = os.path.dirname(fname) + "/" if fname is not None else dir_base_path
         self.user_params = self.config.get("user_parameters") if self.config.get("user_parameters") is not None else {}
         ##  in_features priority is function Arguments "in_features" > config paramter "in_features" > 0
         in_features      = (self.config.get("in_features") if self.config.get("in_features") is not None else 0) if in_features is None else in_features
         self.user_params["in_features"] = in_features
         self.user_params["__before"]    = in_features
+        self.user_params["__dirpath"]   = self.dirpath
         self.shared_variables = {}
         if user_parameters is not None and isinstance(user_parameters, dict):
             for x, y in user_parameters.items(): self.user_params[x] = y
-        for x, y in self.user_params.items():
-            if isinstance(y, str): self.user_params[x] = self.special_word(y)
+        self.user_params = replace_sp_str_and_eval(self.user_params, self.user_params)
         list_module = []
         for dictwk in self.config["network"]:
             args   = dictwk.get("args")   if isinstance(dictwk.get("args"), list)   else ([dictwk.get("args")] if dictwk.get("args") is not None else [])
             kwargs = dictwk.get("kwargs") if isinstance(dictwk.get("kwargs"), dict) else {}
-            for i, x in enumerate(args):
-                if isinstance(x, str): args[i] = self.special_word(x)
-            for _key, x in kwargs.items():
-                if isinstance(x, str): kwargs[_key] = self.special_word(x)
+            args   = replace_sp_str_and_eval(args,   self.user_params)
+            kwargs = replace_sp_str_and_eval(kwargs, self.user_params)
             if dictwk["class"] in __all__:
                 kwargs["is_call_first"] = False
                 dictwkwk = copy.deepcopy(self.user_params)
@@ -96,6 +96,7 @@ class ConfigModule(nn.Module):
                     # If not None, partially overwrite
                     for x, y in kwargs["user_parameters"].items(): dictwkwk[x] = y
                 kwargs["user_parameters"] = dictwkwk
+                kwargs["dir_base_path"]   = self.dirpath
             print(dictwk["class"], args, kwargs)
             module = getattr(nn, dictwk["class"])(*args, **kwargs)
             if isinstance(module, nn.EvalModule): module.set_variables(self.shared_variables)
@@ -105,7 +106,7 @@ class ConfigModule(nn.Module):
                 name_outnode = "out_features"
             elif isinstance(dictwk.get("out_features"), int): self.user_params["__before"] = dictwk.get("out_features")
             elif isinstance(dictwk.get("out_features"), str):
-                out_features = self.special_word(dictwk.get("out_features"))
+                out_features = replace_sp_str_and_eval(dictwk.get("out_features"), self.user_params)
                 if isinstance(out_features, int): self.user_params["__before"] = out_features
                 else: name_outnode = out_features
             if name_outnode is not None:
@@ -155,21 +156,6 @@ class ConfigModule(nn.Module):
         output = [mod.middle_output for mod in self.middle_mod]
         for mod in self.middle_mod: mod.middle_output = None
         return output
-    
-    def special_word(self, string: str):
-        """
-        Replaces or converts the special string in the argument to a number
-        """
-        if string == "__dirpath":
-            return self.dirpath
-        elif sum([string.find(x) >= 0 for x in list(self.user_params.keys())]) > 0:
-            try:
-                return eval(string, copy.deepcopy(self.user_params)) # need copy.deepcopy
-            except (NameError, SyntaxError, TypeError, AttributeError):
-                for x, y in self.user_params.items():
-                    if string.find(x) >= 0: string = string.replace(x, str(y)) # ex) "(___AAA)" -> "(10)"
-                return string
-        return string
     
     def debug(self, is_debug=True):
         """Don't use it."""

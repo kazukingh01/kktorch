@@ -11,6 +11,7 @@ from kktorch.util.com import check_type_list
 
 __all__ = [
     "BaseModule",
+    "TorchModule",
     "MiddleSaveOutput",
     "MiddleReleaseOutput",
     "SplitOutput",
@@ -23,15 +24,16 @@ __all__ = [
     "SharedParameterModule",
     "AggregateInput",
     "EvalModule",
+    "SharedVariablesModule",
     "PretrainedModule",
     "TimmModule",
     "HuggingfaceModule",
-    "SharedVariablesModule",
 ]
 
 
 class BaseModule(nn.Module):
     def __init__(self, name: str=None, is_no_grad: bool=False):
+        assert isinstance(is_no_grad, bool)
         super().__init__()
         self.name        = self.__class__.__name__ if name is None else name
         self.is_debug    = False
@@ -48,12 +50,24 @@ class BaseModule(nn.Module):
             self.save_output = {self.name: output.clone() if isinstance(output, torch.Tensor) else output}
         return output
     def forward_child(self, input):
-        raise NotImplementedError
+        return input
+
+
+class TorchModule(BaseModule):
+    def __init__(self, nn_name: str, nn_args=[], nn_kwargs: dict={}, input_type: str="", name: str=None, **kwargs):
+        assert isinstance(input_type, str) and input_type in ["", "*", "**"]
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
+        self.nn = getattr(nn, nn_name)(*nn_args, **nn_kwargs)
+        self._forward = lambda x, network: network(x)
+        if   input_type == "*":  self._forward = lambda x, network: network( *x)
+        elif input_type == "**": self._forward = lambda x, network: network(**x)
+    def forward_child(self, input: torch.Tensor):
+        return self._forward(input, self.nn)
 
 
 class MiddleSaveOutput(BaseModule):
-    def __init__(self, name: str=None):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"))
+    def __init__(self, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         self.middle_output = None
     def forward_child(self, input: torch.Tensor):
         output = input
@@ -62,16 +76,16 @@ class MiddleSaveOutput(BaseModule):
 
 
 class MiddleReleaseOutput(BaseModule):
-    def __init__(self, name: str=None):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"))
+    def __init__(self, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
     def forward_child(self, input: torch.Tensor):
         output = input
         return output
 
 
 class SplitOutput(BaseModule):
-    def __init__(self, n_split: int, name: str=None):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"))
+    def __init__(self, n_split: int, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         assert isinstance(n_split, int) and n_split > 1
         self.n_split = n_split
     def extra_repr(self):
@@ -82,8 +96,8 @@ class SplitOutput(BaseModule):
 
 
 class CombineListInput(BaseModule):
-    def __init__(self, combine_type: str, dim: int=-1, name: str=None, is_no_grad: bool=False):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), is_no_grad=is_no_grad)
+    def __init__(self, combine_type: str, dim: int=-1, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         assert isinstance(combine_type, str) and combine_type in ["sum", "ave", "cat"]
         self.is_check       = True
         self.dim            = dim
@@ -113,8 +127,8 @@ class CombineListInput(BaseModule):
 
 
 class SelectIndexListInput(BaseModule):
-    def __init__(self, index: int, name: str=None):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"))
+    def __init__(self, index: int, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         self.index = index
     def forward_child(self, input: List[torch.Tensor]) -> torch.Tensor:
         output = input[self.index]
@@ -122,8 +136,8 @@ class SelectIndexListInput(BaseModule):
 
 
 class EinsumInput(BaseModule):
-    def __init__(self, einsum: str, name: str=None, is_no_grad: bool=False):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), is_no_grad=is_no_grad)
+    def __init__(self, einsum: str, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         self.einsum = einsum
     def extra_repr(self):
         return f'einsum={self.einsum}'
@@ -135,8 +149,8 @@ class EinsumInput(BaseModule):
 
 
 class ReshapeInput(BaseModule):
-    def __init__(self, *dim, name: str=None):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"))
+    def __init__(self, *dim, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         self.dim        = dim 
         self.is_not_set = True if sum([isinstance(x, str) for x in dim]) > 0 else False
     def extra_repr(self):
@@ -209,18 +223,19 @@ class SelectIndexTensorInput(BaseModule):
 class ParameterModule(BaseModule):
     def __init__(
         self, *dim, 
-        name: str="param", init_type: str="rand", init_timing: str="before", 
+        init_type: str="rand", init_timing: str="before", init_eval_str: str="",
         requires_grad: bool=True, dtype=torch.float32, output_type: str="parallel", 
-        eps: float=1e-6, is_no_grad: bool=False
+        eps: float=1e-6, name: str="param", **kwargs
     ):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), is_no_grad=is_no_grad)
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         assert not (init_timing == "after" and requires_grad)
         assert init_type in ["rand", "randn", "zero", "one", "custom", "eval"]
         self.dim            = dim
         self.init_type      = init_type
         self.init_timing    = init_timing
+        self.init_eval_str  = init_eval_str
         self.requires_grad  = requires_grad
-        self.dtype          = dtype
+        self.dtype          = eval(dtype, {"torch": torch}) if isinstance(dtype, str) else dtype
         self.is_not_set     = True if self.init_timing == "after" else False 
         if self.init_timing == "before": self.create_parameter(*self.dim)
         self.output_type    = output_type
@@ -234,7 +249,8 @@ class ParameterModule(BaseModule):
         elif output_type == "log":      self.forward_output = lambda x, y: x * torch.log(y + eps)
         else:                           self.forward_output = lambda x, y: eval(self.output_type, {"input": x, "param": y, "torch": torch})
     def extra_repr(self):
-        return f'name={self.name}, dim={self.dim}, init_type={self.init_type}, init_timing={self.init_timing}, requires_grad={self.requires_grad}, dtype={self.dtype}, output_type: {self.output_type}'
+        return  f'name={self.name}, dim={self.dim}, init_type={self.init_type}, init_timing={self.init_timing}, ' + \
+                f'requires_grad={self.requires_grad}, dtype={self.dtype}, output_type: {self.output_type}'
     def forward_child(self, input: torch.Tensor):
         if self.is_not_set:
             self.create_parameter(*self.convert_dim(self.dim, input.shape), device=input.device)
@@ -248,7 +264,7 @@ class ParameterModule(BaseModule):
         elif self.init_type == "zero":   param = torch.zeros(*dim)
         elif self.init_type == "one":    param = torch.ones( *dim)
         elif self.init_type == "custom": param = torch.Tensor(dim)
-        elif self.init_type == "eval":   param = eval(dim[0], {"util": util})
+        elif self.init_type == "eval":   param = eval(self.init_eval_str, {"util": util, "init": torch.nn.init, "param": torch.empty(*dim)})
         self.param = nn.Parameter(param.to(self.dtype), requires_grad=self.requires_grad).to(device)
     @classmethod
     def convert_dim(cls, dim: list, shape: List[int]) -> List[int]:
@@ -262,19 +278,19 @@ class ParameterModule(BaseModule):
 class SharedParameterModule(BaseModule):
     def __init__(
         self, param_address: str, name: str=None, is_copy: bool=False, requires_grad: bool=True, 
-        output_eval: str="[x, y]", is_no_grad: bool=False
+        output_eval: str="[x, y]", **kwargs
     ):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), is_no_grad=is_no_grad)
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         self.param          = None
         self.param_address  = param_address
         self.is_copy        = is_copy
         self.requires_grad  = requires_grad
         self.output_eval    = output_eval
-        self.forward_output = lambda x, y: eval(self.output_eval, {"input": x, "param": y, "torch": torch})
+        self.forward_output = lambda x, y, output_eval, torch: eval(output_eval, {"input": x, "param": y, "torch": torch})
     def extra_repr(self):
         return f'name={self.name}, param_address={self.param_address}, is_copy={self.is_copy}, requires_grad={self.requires_grad}, output_eval: {self.output_eval}'
     def forward_child(self, input: torch.Tensor):
-        output = self.forward_output(input, self.param)
+        output = self.forward_output(input, self.param, self.output_eval, torch)
         return output
     def set_parameter(self, param: nn.parameter.Parameter):
         if self.is_copy:
@@ -302,8 +318,8 @@ class AggregateInput(BaseModule):
 
 
 class EvalModule(BaseModule):
-    def __init__(self, eval: str, name: str=None, is_no_grad: bool=False):
-        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), is_no_grad=is_no_grad)
+    def __init__(self, eval: str, name: str=None, **kwargs):
+        super().__init__(name=(self.__class__.__name__ if name is None else f"{self.__class__.__name__}({name})"), **kwargs)
         self.eval = eval
         self.variables = None
     def extra_repr(self):
@@ -332,7 +348,7 @@ class SharedVariablesModule(EvalModule):
 class PretrainedModule(BaseModule):
     def __init__(
         self, model: nn.Module, name_model: str, name_module: str=None, 
-        freeze_layers: Union[str, List[str]]=None, is_no_grad: bool=False
+        freeze_layers: Union[str, List[str]]=None, **kwargs
     ):
         """
         Params::
@@ -340,7 +356,7 @@ class PretrainedModule(BaseModule):
             dict_freeze:
                 ex) {"Linear": 10}, Freeze all modules until "Linear" is encountered 10 times.
         """
-        super().__init__(name=f"{self.__class__.__name__}({name_model})", is_no_grad=is_no_grad)
+        super().__init__(name=f"{self.__class__.__name__}({name_model})", **kwargs)
         self.name_model    = name_model
         self.freeze_layers = ([freeze_layers, ] if isinstance(freeze_layers, str) else freeze_layers) if freeze_layers is not None else []
         assert check_type_list(self.freeze_layers, str)

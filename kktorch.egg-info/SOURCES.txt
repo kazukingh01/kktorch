@@ -16,6 +16,7 @@ kktorch/nn/activation.py
 kktorch/nn/configmod.py
 kktorch/nn/loss.py
 kktorch/nn/modules.py
+kktorch/nn/utils.py
 kktorch/trainer/__init__.py
 kktorch/trainer/base.py
 kktorch/util/__init__.py

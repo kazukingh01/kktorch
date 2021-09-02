@@ -10,7 +10,7 @@
     "network": [
         {
             "class": "Linear",
-            "args": ["__before", "___in_node"]
+            "args": ["in_features", "___in_node"]
         },
         {
             "class": "GELU"
