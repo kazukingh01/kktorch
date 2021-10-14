@@ -1,14 +1,20 @@
-import json
 import pandas as pd
-import numpy as np
 import cv2
-from typing import List, Union, Callable
+from typing import List, Union
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
-from kktorch.util.com import correct_dirpath, check_type_list
+from kkannotation.streamer import Streamer
+from kktorch.util.com import check_type_list
 import kktorch.util.image as tfms
+
+
+__all__ = [
+    "ImageDataset",
+    "DataframeDataset",
+    "VideoDataset",
+]
 
 
 class ImageDataset(Dataset):
@@ -94,3 +100,28 @@ class DataframeDataset(Dataset):
         return self.ndf.shape[0]
 
 
+class VideoImageDataset(Dataset):
+    def __init__(
+        self, video_file_path: str, labels: List[object], 
+        reverse: bool=False, start_frame_id: int=0, max_frames: int=None,
+        **kwargs    
+    ):
+        """
+        Params::
+            video_file_path:
+                video file paths.
+            labels:
+                labels.
+                [1, 0, ...] or [[1,2,3], [2,3,4], ...] or [objectA, objectB, ...]
+        """
+        assert isinstance(video_file_path, str)
+        self.streamer = Streamer(video_file_path, reverse=reverse, start_frame_id=start_frame_id, max_frames=max_frames)
+        assert isinstance(labels, list) and len(self.streamer) == len(labels)
+        self.labels   = labels
+        super().__init__(**kwargs)
+    def __len__(self):
+        return len(self.streamer)
+    def __getitem__(self, index: int):
+        img    = self.streamer[index]
+        labels = self.labels[index]
+        return img, labels
