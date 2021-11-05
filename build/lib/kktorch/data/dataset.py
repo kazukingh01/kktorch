@@ -104,6 +104,7 @@ class VideoImageDataset(Dataset):
     def __init__(
         self, video_file_path: str, labels: List[object], 
         reverse: bool=False, start_frame_id: int=0, max_frames: int=None,
+        transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([tfms.ToTensor(),]),
         **kwargs    
     ):
         """
@@ -115,13 +116,17 @@ class VideoImageDataset(Dataset):
                 [1, 0, ...] or [[1,2,3], [2,3,4], ...] or [objectA, objectB, ...]
         """
         assert isinstance(video_file_path, str)
+        assert isinstance(transforms, tfms.Compose)
         self.streamer = Streamer(video_file_path, reverse=reverse, start_frame_id=start_frame_id, max_frames=max_frames)
         assert isinstance(labels, list) and len(self.streamer) == len(labels)
-        self.labels   = labels
+        self.labels     = labels
+        self.transforms = transforms
         super().__init__(**kwargs)
     def __len__(self):
         return len(self.streamer)
     def __getitem__(self, index: int):
         img    = self.streamer[index]
+        img    = Image.fromarray(img)
+        img    = self.transforms(img)
         labels = self.labels[index]
         return img, labels
