@@ -365,7 +365,6 @@ class PretrainedModule(BaseModule):
     def extra_repr(self):
         return f'name_model={self.name_model}'
     def freeze(self):
-        dictwk = {}
         for name, params in self.model.named_parameters():
             is_freeze = False
             for regstr in self.freeze_layers:

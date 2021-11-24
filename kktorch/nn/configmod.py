@@ -193,6 +193,7 @@ class ConfigModule(nn.Module):
                     return module
         return None
 
+
 class SkipConnection(ConfigModule):
     def forward(self, input: torch.Tensor):
         _input = input.clone()

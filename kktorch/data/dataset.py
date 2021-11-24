@@ -39,6 +39,7 @@ class ImageDataset(Dataset):
                     a image is transformed by Compose of List and create N image.
         """
         assert check_type_list(image_paths, str)
+        if labels is None: labels = [0] * len(image_paths)
         assert isinstance(labels, list) and len(image_paths) == len(labels)
         assert isinstance(transforms, tfms.Compose) or check_type_list(transforms, tfms.Compose)
         self.image_paths  = image_paths
