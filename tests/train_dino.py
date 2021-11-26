@@ -14,6 +14,7 @@ from torch.nn.functional import multi_head_attention_forward
 from torch.nn.init import trunc_normal_
 import torch.nn.utils.clip_grad
 
+
 class MyTrainer(Trainer):
     def process_data_train_pre(self, input):
         return [input, ] if isinstance(input, torch.Tensor) else input
@@ -62,20 +63,22 @@ class TeacherStudent(torch.nn.Module):
 
 if __name__ == "__main__":
     # config file
-    fjson = "../kktorch/model_zoo/dino/dino_vit.json"
+    fjson = "../kktorch/model_zoo/dino/dino_eff.json"
 
     # load config file and create network
     network = ConfigModule(
         fjson,
         ## You can override the config settings.
         user_parameters={
-            "___n_layer": 12,
-            "___n_dim": 256,
-            "___n_head": 4,
-            "___dropout_p": 0.0,
-            "___patch_size": 16,
-            "___img_size": 224,
-            "___n_projection": 64
+            # "___n_layer": 12,
+            # "___n_dim": 192,
+            # "___n_head": 3,
+            # "___dropout_p": 0.0,
+            # "___patch_size": 16,
+            # "___img_size": 224,
+            # "___n_projection": 64
+            "___n_dim": 1280,
+            "___n_projection": 128
         },
     )
     network = TeacherStudent(network, update_rate=0.996)
@@ -106,7 +109,7 @@ if __name__ == "__main__":
 
     # dataloader. multi crop 2 x 224x224, 4 x 96x96
     dataloader_train = PASCALvoc2012DataLoader(
-        root='./data', train=True, download=True, batch_size=16, shuffle=True, drop_last=True,
+        root='./data', train=True, download=True, batch_size=36, shuffle=True, drop_last=True,
         transforms=[
             aug_train(224, scale=(0.4, 1.0),  p_blue=1.0, p_sol=0.0),
             aug_train(224, scale=(0.4, 1.0),  p_blue=0.1, p_sol=0.2),
@@ -115,7 +118,7 @@ if __name__ == "__main__":
             aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
             aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
         ],
-        num_workers=4
+        num_workers=6
     )
 
     # trainer
@@ -128,14 +131,14 @@ if __name__ == "__main__":
             "params": dict(lr=5e-4)
         }, 
         dataloader_train=dataloader_train,
-        epoch=50, print_step=50, auto_mixed_precision=False, accumulation_step=1, clip_grad=3.0
+        epoch=50, print_step=50, auto_mixed_precision=True, accumulation_step=1, clip_grad=3.0
     )
 
     # to cuda
     trainer.to_cuda()
 
     # training
-    trainer.train()
+    #trainer.train()
 
     # evaluation setup. multi crop 2 x 224x224
     dataloader_train = PASCALvoc2012DataLoader(
@@ -159,7 +162,7 @@ if __name__ == "__main__":
 
     #trainer.load("/path/to/model/weight.pth")
     predictor = MyPredictor(network, auto_mixed_precision=True)
-    predictor.load("save_output_dino_vit_lr1/model_7900.pth")
+    predictor.load("save_output_dino_effi_1/model_7900.pth")
     predictor.to_cuda()
 
     # predict

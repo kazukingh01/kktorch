@@ -16,45 +16,19 @@
                         "args": "___n_dim"
                     },
                     {
-                        "class": "Linear",
-                        "args": ["___n_dim", "___n_dim * 3"],
-                        "kwargs": {"bias": false}
-                    },
-                    {
-                        "class": "SharedVariablesModule",
-                        "args": "{'n_seq': input.shape[1]}"
-                    },
-                    {
-                        "class": "EvalModule",
-                        "args": "input.reshape(-1, variables['n_seq'], 3, ___n_dim).permute(1,0,2,3)"
-                    },
-                    {
-                        "class": "EvalModule",
-                        "args": "input[:, :, 0, :], input[:, :, 1, :], input[:, :, 2, :]"
-                    },
-                    {
-                        "class": "TorchModule",
-                        "args": "MultiheadAttention",
+                        "class": "MultiHeadSelfAttention",
+                        "args": "___n_dim",
                         "kwargs": {
-                            "nn_args": ["___n_dim", "___n_head"],
-                            "nn_kwargs": {
-                                "dropout": "___dropout_p",
-                                "bias": false,
-                                "add_bias_kv": false,
-                                "add_zero_attn": false,
-                                "kdim": null,
-                                "vdim": null
-                            },
-                            "input_type": "*"
+                            "num_heads": "___n_head",
+                            "qkv_bias": false,
+                            "qk_scale": null,
+                            "p_drop_attn": "___dropout_p",
+                            "p_drop_proj": "___dropout_p"
                         }
                     },
                     {
                         "class": "SelectIndexListInput",
                         "args": 0
-                    },
-                    {
-                        "class": "EvalModule",
-                        "args": "input.permute(1,0,2)"
                     },
                     {
                         "class": "DropBatch",

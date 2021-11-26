@@ -1,9 +1,14 @@
 {
     "name": "swav",
     "user_parameters": {
-        "___n_projection": 1024,
-        "___k_clusters": 512,
-        "___n_timm_dim": 1280
+        "___n_layer": 12,
+        "___n_dim": 192,
+        "___n_head": 3,
+        "___dropout_p": 0.0,
+        "___patch_size": 16,
+        "___img_size": 224,
+        "___n_projection": 64,
+        "___k_clusters": 200
     },
     "network": [
         {
@@ -20,12 +25,8 @@
                         "args": "input.reshape(-1,*input.shape[-3:])"
                     },
                     {
-                        "class": "TimmModule",
-                        "args": "efficientnet_b0",
-                        "kwargs": {
-                            "pretrained": false,
-                            "set_ident_layers": ["classifier"]
-                        }
+                        "class": "ConfigModule",
+                        "args": "../vit/vit.json"
                     },
                     {
                         "class": "EvalModule",
@@ -51,7 +52,7 @@
         },
         {
             "class": "BatchNorm1d",
-            "args": "___n_timm_dim"
+            "args": "___n_dim"
         },
         {
             "class": "EvalModule",
@@ -62,7 +63,7 @@
         },
         {
             "class": "Linear",
-            "args": ["___n_timm_dim", "___n_projection"]
+            "args": ["___n_dim", "___n_projection"]
         },
         {
             "class": "ParameterModule",

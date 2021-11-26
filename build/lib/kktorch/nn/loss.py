@@ -119,7 +119,7 @@ class SwAVLoss(BaseLoss):
         loss1   = (-1 * tens_qs1 * torch.cat([tens_pt[1:2], tens_pt[2:]], dim=0)).sum(dim=2)
         loss2   = (-1 * tens_qs2 * torch.cat([tens_pt[0:1], tens_pt[2:]], dim=0)).sum(dim=2)
         loss    = torch.cat([loss1.reshape(-1), loss2.reshape(-1)], dim=0)
-        loss    = loss / (2 * (tens_zt.shape[0] - 2))
+        loss    = loss / (2 + 2 * (tens_zt.shape[0] - 2))
         return loss
     def sinkhorn(self, tens_zs: torch.Tensor):
         """
@@ -177,7 +177,7 @@ class DINOLoss(BaseLoss):
         loss1    = (-1 * output_t1 * torch.cat([output_s[1:2], output_s[2:]], dim=0)).sum(dim=2)
         loss2    = (-1 * output_t2 * torch.cat([output_s[0:1], output_s[2:]], dim=0)).sum(dim=2)
         loss     = torch.cat([loss1.reshape(-1), loss2.reshape(-1)], dim=0)
-        loss     = loss / (2 * (input.shape[0] - 2))
+        loss     = loss / (2 + 2 * (input.shape[0] - 2))
         with torch.no_grad():
             self.vec_center = self.vec_center.mul(self.update_rate) + target.mean(dim=(0,1)).mul(1 - self.update_rate)
         return loss

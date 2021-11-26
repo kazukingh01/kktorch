@@ -1,4 +1,5 @@
 import numpy as np
+from PIL import Image 
 import torch, kktorch
 from torchvision import transforms
 from kktorch.trainer.base import Trainer
@@ -14,7 +15,7 @@ class MyTrainer(Trainer):
     def process_data_valid_pre(self, input):
         return [input, ] if isinstance(input, torch.Tensor) else input
     def process_data_train_aft(self, input):
-        if self.i_epoch <= 1:
+        if self.i_epoch <= 3:
             self.network.search_module("ParameterModule(cluster_param)").param.requires_grad = False
         return [input[-1], ]
 
@@ -24,36 +25,41 @@ if __name__ == "__main__":
     fjson = "../kktorch/model_zoo/swav/swav.json"
 
     # load config file and create network
-    n_projection = 32
-    k_clusters   = 60
+    n_projection = 64
+    k_clusters   = 200
     network = ConfigModule(
         fjson,
         ## You can override the config settings.
         user_parameters={
-            "___n_projection": n_projection,
             "___k_clusters": k_clusters,
+            "___n_layer": 12,
+            "___n_dim": 192,
+            "___n_head": 3,
+            "___dropout_p": 0.0,
+            "___patch_size": 16,
+            "___img_size": 224,
+            "___n_projection": n_projection
+
         },
     )
 
-    def aug_train(sizeA: int, sizeB: int):
+    def aug_train(size: int, scale=(0.4, 1.0), p_blue: float=1.0, p_sol: float=0.0):
         return transforms.Compose([
-            ResizeFixRatio(sizeA, "min", is_check_everytime=False), 
-            transforms.RandomCrop(sizeB),
+            transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.Compose([
-                transforms.RandomApply([transforms.ColorJitter(0.8, 0.8, 0.8, 0.2)], p=0.8),
-                transforms.RandomGrayscale(p=0.2),
-            ]),
+            transforms.RandomApply([transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([transforms.GaussianBlur(3)], p=p_blue),
+            transforms.RandomSolarize(128.0, p=p_sol),
             transforms.ToTensor(),
             transforms.Normalize(
                 PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
                 PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_STD
             ),
         ])
-    def aug_valid(sizeA: int, sizeB: int):
+    def aug_valid(size: int, scale=(0.4, 1.0)):
         return transforms.Compose([
-            ResizeFixRatio(sizeA, "min", is_check_everytime=False), 
-            transforms.RandomCrop(sizeB),
+            transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
             transforms.ToTensor(),
             transforms.Normalize(
                 PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
@@ -63,16 +69,16 @@ if __name__ == "__main__":
 
     # dataloader. multi crop 2 x 256x256, 4 x 128x128
     dataloader_train = PASCALvoc2012DataLoader(
-        root='./data', train=True, download=True, batch_size=20, shuffle=True, drop_last=True,
+        root='./data', train=True, download=True, batch_size=36, shuffle=True, drop_last=True,
         transforms=[
-            aug_train(256, 256),
-            aug_train(256, 256),
-            aug_train(256, 128),
-            aug_train(256, 128),
-            aug_train(256, 128),
-            aug_train(256, 128),
+            aug_train(224, scale=(0.4, 1.0),  p_blue=1.0, p_sol=0.0),
+            aug_train(224, scale=(0.4, 1.0),  p_blue=0.1, p_sol=0.2),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
         ],
-        num_workers=8
+        num_workers=6
     )
 
     # trainer
@@ -82,34 +88,39 @@ if __name__ == "__main__":
         losses_train_name="swav",
         optimizer={
             "optimizer": torch.optim.AdamW, 
-            "params": dict(lr=1e-2)
-        }, 
+            "params": dict(lr=5e-4)
+        },
         dataloader_train=dataloader_train,
-        epoch=50, print_step=200, auto_mixed_precision=True, accumulation_step=1
+        epoch=50, print_step=50, auto_mixed_precision=True, accumulation_step=1, clip_grad=3.0
     )
 
     # to cuda
     trainer.to_cuda()
 
     # training
-    trainer.train()
+    #trainer.train()
 
     # evaluation setup. multi crop 2 x 256x256
     dataloader_train = PASCALvoc2012DataLoader(
         root='./data', train=True, download=True, batch_size=64, shuffle=False, drop_last=False, num_workers=8,
         transforms=[
-            aug_valid(256, 256),
-            aug_valid(256, 256),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
         ],
     )
     dataloader_valid = PASCALvoc2012DataLoader(
         root='./data', train=False, download=True, batch_size=64, shuffle=False, drop_last=False, num_workers=8,
         transforms=[
-            aug_valid(256, 256),
-            aug_valid(256, 256),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
+            aug_train(224, scale=(0.4, 1.0)),
         ]
     )
-    trainer.load("/path/to/model/weight.pth")
+    #trainer.load("/path/to/model/weight.pth")
+    trainer.load("save_output_swav_vit/model_7900.pth")
     trainer.to_cuda()
 
     # predict

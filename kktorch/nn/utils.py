@@ -7,6 +7,7 @@ __all__ = [
     "DropBatch",
     "PatchEmbed",
     "PositionalEncoding",
+    "MultiHeadSelfAttention",
 ]
 
 
@@ -108,3 +109,29 @@ class PositionalEncoding(nn.Module):
             mode='bicubic', align_corners=False, recompute_scale_factor=False
         )
         return pe[0]
+
+
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(
+        self, dim: int, num_heads: int=8, qkv_bias: bool=False, qk_scale: float=None,
+        p_drop_attn: float=0., p_drop_proj: float=0.
+    ):
+        super().__init__()
+        self.num_heads = num_heads
+        head_dim       = dim // num_heads
+        self.scale     = qk_scale or head_dim ** -0.5
+        self.qkv       = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(p_drop_attn)
+        self.proj      = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(p_drop_proj)
+    def forward(self, input: torch.Tensor):
+        B, S, D = input.shape
+        qkv = self.qkv(input).reshape(B, S, 3, self.num_heads, D // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+        output = (attn @ v).transpose(1, 2).reshape(B, S, D)
+        output = self.proj(output)
+        output = self.proj_drop(output)
+        return output, attn
