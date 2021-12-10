@@ -1,0 +1,37 @@
+{
+    "name": "encoder",
+    "user_parameters": {
+        "___in_channels": 1,
+        "___z": 64,
+        "___dim": 512
+    },
+    "network": [
+        {
+            "class": "Conv2d",
+            "args": ["___in_channels", 3],
+            "kwargs": {
+                "kernel_size": 1,
+                "stride": 1,
+                "padding": 0,
+                "bias": false
+            }
+        },
+        {
+            "class": "TimmModule",
+            "args": "resnet18",
+            "kwargs": {
+                "pretrained": false,
+                "set_ident_layers": [
+                    "fc"
+                ]
+            }
+        },
+        {
+            "class": "Linear",
+            "args": ["___dim", "___z"],
+            "kwargs": {
+                "bias": false
+            }
+        }
+    ]
+}

@@ -11,6 +11,7 @@ __all__ = [
     "RepeatModule",
     "SplitModule",
     "ApplyModule",
+    "RegidualModule",
 ]
 
 
@@ -243,3 +244,13 @@ class ApplyModule(nn.Module):
             assert isinstance(input, list) or isinstance(input, tuple)
             self.is_check = False
         return [self.apply_module(x) for x in input]
+
+
+class RegidualModule(nn.Module):
+    def __init__(self, *args, **kwargs):
+        assert len(args) == 2
+        super().__init__()
+        self.mod1 = ConfigModule(args[0], **kwargs)
+        self.mod2 = ConfigModule(args[1], **kwargs)
+    def forward(self, input: Union[torch.Tensor, List[torch.Tensor], dict]):
+        return self.mod1(input) + self.mod2(input)

@@ -36,6 +36,8 @@ class Trainer:
         losses_train: Union[_Loss, List[_Loss]]=None, losses_train_weight: List[float]=None, 
         losses_valid: Union[_Loss, List[_Loss], List[List[_Loss]]]=None,
         losses_train_name: Union[str, List[str]]=None, losses_valid_name: Union[str, List[str], List[List[str]]]=None, 
+        adjust_output_size_front: int=0, adjust_target_size_front: int=0, 
+        adjust_output_size_back:  int=0, adjust_target_size_back:  int=0, 
         # optimizer
         optimizer: dict={"optimizer": torch.optim.SGD, "params": dict(lr=0.001, weight_decay=0)},
         # scheduler
@@ -113,6 +115,10 @@ class Trainer:
         self.losses_train_weight = losses_train_weight if losses_train_weight is not None else 1.0
         self.losses_train_name = losses_train_name if isinstance(losses_train_name, list) else ([losses_train_name]   if losses_train_name is not None else [])
         self.losses_valid_name = losses_valid_name if isinstance(losses_valid_name, list) else ([[losses_valid_name]] if losses_valid_name is not None else [])
+        self.adjust_output_size_front = adjust_output_size_front
+        self.adjust_output_size_back  = adjust_output_size_back
+        self.adjust_target_size_front = adjust_target_size_front
+        self.adjust_target_size_back  = adjust_target_size_back
         # optimizer
         self.optimizer_config = optimizer
         # scheduler
@@ -225,6 +231,10 @@ epoch : {self.epoch}
             assert check_type_list(self.early_stopping_i_valid, int)
         assert isinstance(self.auto_mixed_precision, bool)
         assert isinstance(self.clip_grad, float) and self.clip_grad >= 0
+        assert isinstance(self.adjust_output_size_front, int) and self.adjust_output_size_front >= 0
+        assert isinstance(self.adjust_output_size_back,  int) and self.adjust_output_size_back  >= 0
+        assert isinstance(self.adjust_target_size_front, int) and self.adjust_target_size_front >= 0
+        assert isinstance(self.adjust_target_size_back,  int) and self.adjust_target_size_back  >= 0
 
     def initialize(self):
         logger.info("trainer parameter initialize.")
@@ -338,15 +348,18 @@ epoch : {self.epoch}
     def process_data_train_pre(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return input
     def process_data_train_aft(self, input: Union[torch.Tensor, List[torch.Tensor]]):
-        return [input, ] if isinstance(input, torch.Tensor) else input
+        input = [input, ] if isinstance(input, torch.Tensor) else input
+        return [torch.zeros(0)] * self.adjust_output_size_front + input + [torch.zeros(0)] * self.adjust_output_size_back
     def process_data_valid_pre(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return input
     def process_data_valid_aft(self, input: Union[torch.Tensor, List[torch.Tensor]]):
-        return [input, ] if isinstance(input, torch.Tensor) else input
+        input = [input, ] if isinstance(input, torch.Tensor) else input
+        return [torch.zeros(0)] * self.adjust_output_size_front + input + [torch.zeros(0)] * self.adjust_output_size_back
     def process_label_pre(self, label: Union[torch.Tensor, List[torch.Tensor]], input: Union[torch.Tensor, List[torch.Tensor]]=None):
         return label
     def process_label_aft(self, label: Union[torch.Tensor, List[torch.Tensor]], input: Union[torch.Tensor, List[torch.Tensor]]=None):
-        return [label, ] if isinstance(label, torch.Tensor) else label
+        label = [label, ] if isinstance(label, torch.Tensor) else label
+        return [torch.zeros(0)] * self.adjust_target_size_front + label + [torch.zeros(0)] * self.adjust_target_size_back
 
     def processes(
         self, 

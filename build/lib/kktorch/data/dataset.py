@@ -5,7 +5,6 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
-from kkannotation.streamer import Streamer
 from kktorch.util.com import check_type_list
 import kktorch.util.image as tfms
 
@@ -13,7 +12,6 @@ import kktorch.util.image as tfms
 __all__ = [
     "ImageDataset",
     "DataframeDataset",
-    "VideoDataset",
 ]
 
 
@@ -99,35 +97,3 @@ class DataframeDataset(Dataset):
         return tuple(self.ndf[index])
     def __len__(self):
         return self.ndf.shape[0]
-
-
-class VideoImageDataset(Dataset):
-    def __init__(
-        self, video_file_path: str, labels: List[object], 
-        reverse: bool=False, start_frame_id: int=0, max_frames: int=None,
-        transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([tfms.ToTensor(),]),
-        **kwargs    
-    ):
-        """
-        Params::
-            video_file_path:
-                video file paths.
-            labels:
-                labels.
-                [1, 0, ...] or [[1,2,3], [2,3,4], ...] or [objectA, objectB, ...]
-        """
-        assert isinstance(video_file_path, str)
-        assert isinstance(transforms, tfms.Compose)
-        self.streamer = Streamer(video_file_path, reverse=reverse, start_frame_id=start_frame_id, max_frames=max_frames)
-        assert isinstance(labels, list) and len(self.streamer) == len(labels)
-        self.labels     = labels
-        self.transforms = transforms
-        super().__init__(**kwargs)
-    def __len__(self):
-        return len(self.streamer)
-    def __getitem__(self, index: int):
-        img    = self.streamer[index]
-        img    = Image.fromarray(img)
-        img    = self.transforms(img)
-        labels = self.labels[index]
-        return img, labels

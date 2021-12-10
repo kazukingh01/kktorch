@@ -333,6 +333,9 @@ class EvalModule(BaseModule):
 
 
 class SharedVariablesModule(EvalModule):
+    """
+    https://github.com/kazukingh01/kktorch/blob/main/kktorch/model_zoo/swav/swav.json#L15
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.is_check = True

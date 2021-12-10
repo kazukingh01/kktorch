@@ -1,0 +1,35 @@
+{
+    "name": "vae",
+    "user_parameters": {
+        "___in_channels": 1,
+        "___z": 64,
+        "___dim1": 1024,
+        "___dim2": 512
+    },
+    "network": [
+        {
+            "class": "ConfigModule",
+            "args": "encoder.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "user_parameters": {
+                    "___in_channels": "___in_channels",
+                    "___z": "___z",
+                    "___dim": "___dim1"
+                }
+            }
+        },
+        {
+            "class": "ConfigModule",
+            "args": "decoder.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "user_parameters": {
+                    "___in_channels": "___in_channels",
+                    "___z": "___z",
+                    "___dim": "___dim2"
+                }
+            }
+        }
+    ]
+}

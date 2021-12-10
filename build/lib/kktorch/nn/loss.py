@@ -9,16 +9,19 @@ __all__ = [
     "CrossEntropySmoothingLoss",
     "SwAVLoss",
     "DINOLoss",
+    "VAE_KLDLoss",
 ]
 
 
 class BaseLoss(_Loss):
     def __init__(self, reduction="mean", is_check_everytime: bool=True):
-        assert isinstance(reduction, str) and reduction in ["mean", "sum"]
+        assert isinstance(reduction, str) and reduction in ["mean", "sum", "ident"]
         super().__init__()
         self.is_check = True
         self.is_check_everytime = is_check_everytime
-        self.output_reduction   = torch.mean if self.reduction == "mean" else torch.sum
+        self.output_reduction   = lambda x: x
+        if   self.reduction == "mean": self.output_reduction = torch.mean
+        elif self.reduction == "sum":  self.output_reduction = torch.sum
     def forward(self, *args, **kwargs):
         if self.is_check_everytime or self.is_check:
             self.check(*args, **kwargs)
@@ -180,4 +183,24 @@ class DINOLoss(BaseLoss):
         loss     = loss / (2 + 2 * (input.shape[0] - 2))
         with torch.no_grad():
             self.vec_center = self.vec_center.mul(self.update_rate) + target.mean(dim=(0,1)).mul(1 - self.update_rate)
+        return loss
+
+
+class VAE_KLDLoss(BaseLoss):
+    def __init__(self, reduction: str='mean', is_check_everytime=False):
+        super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
+    def check(self, input: torch.Tensor, target):
+        assert isinstance(input, torch.Tensor) and len(input.shape) == 2
+    def forward_child(self, input: torch.Tensor, target):
+        """
+        input::
+            gaussian parameters.
+            shape is (batch_size, z_mean_dim + z_sigma_dim)
+            z_sigma_dim: log(sigma^2)
+        target::
+            None
+        """
+        dim = input.shape[1] // 2
+        input_z_mean, input_z_logsigma2 = input[:, :dim], input[:, dim:]
+        loss = -0.5 * (1 + input_z_logsigma2 - input_z_mean ** 2 - torch.exp(input_z_logsigma2)).sum(axis=-1)
         return loss

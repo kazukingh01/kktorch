@@ -1,0 +1,79 @@
+{
+    "name": "decoder",
+    "user_parameters": {
+        "___in_channels": 1,
+        "___z": 64,
+        "___dim": 512
+    },
+    "network": [
+        {
+            "class": "Linear",
+            "args": ["___z", "___dim"],
+            "kwargs": {
+                "bias": false
+            }
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "___dim // 4", 2, 2]
+        },
+        {
+            "class": "ConfigModule",
+            "args": "decoder_block.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "___dim // 4",
+                "user_parameters": {
+                    "___size": 3.5,
+                    "___kernel": 5,
+                    "___stride": 2,
+                    "___padding": 0
+                }
+            },
+            "out_features": "___dim // 8"
+        },
+        {
+            "class": "ConfigModule",
+            "args": "decoder_block.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before",
+                "user_parameters": {
+                    "___size": 2,
+                    "___kernel": 4,
+                    "___stride": 2,
+                    "___padding": 1
+                }
+            },
+            "out_features": "__before // 2"
+        },
+        {
+            "class": "ConfigModule",
+            "args": "decoder_block.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before",
+                "user_parameters": {
+                    "___size": 2,
+                    "___kernel": 4,
+                    "___stride": 2,
+                    "___padding": 1
+                }
+            },
+            "out_features": "__before // 2"
+        },
+        {
+            "class": "Conv2d",
+            "args": ["__before", "___in_channels"],
+            "kwargs": {
+                "kernel_size": 1,
+                "stride": 1,
+                "padding": 0,
+                "bias": false
+            }
+        },
+        {
+            "class": "Sigmoid"
+        }
+    ]
+}

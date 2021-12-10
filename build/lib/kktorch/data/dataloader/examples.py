@@ -5,10 +5,9 @@ import pandas as pd
 import numpy as np
 
 import torch, torchvision
-import torchvision.transforms as transforms
 
 from kktorch.data.dataset import DataframeDataset, ImageDataset
-from kktorch.util.com import correct_dirpath, makedirs
+from kktorch.util.com import check_type_list, correct_dirpath, makedirs
 from kktorch.util.files import download_file
 from kktorch.util.dataframe import text_files_to_dataframe
 from kktorch.data.dataloader.dataloader import BaseDataLoader, TextDataLoader
@@ -53,14 +52,50 @@ def deploy_files(url: str, dirpath: str, download: bool, extract: str="zip"):
 
 
 class MNISTDataLoader(BaseDataLoader):
+    """
+    Usage::
+        >>> from kktorch.data.dataloader import MNISTDataLoader
+        >>> dataloader_train = MNISTDataLoader(root='./data', train=True,  download=True, batch_size=2, shuffle=True)
+        >>> batch, label = next(iter(dataloader_train))
+        >>> batch
+        tensor([[[[0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                ...,
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.]]],
+
+
+                [[[0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                ...,
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.],
+                [0., 0., 0.,  ..., 0., 0., 0.]]]])
+        >>> batch.shape
+        torch.Size([2, 1, 28, 28])
+        >>> label
+        tensor([2, 5])
+        >>> label.shape
+        torch.Size([2])
+    """
     def __init__(
         self, root: str='./data', train: bool=True, download: bool=True, 
-        transform=[transforms.ToTensor(), ], 
-        dtype_data=torch.float32, dtype_target=torch.long, **kwargs
+        transform=[tfms.ToTensor(), ], 
+        dtype_data=torch.float32, dtype_target=torch.long, 
+        classes_targets: List[int] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        **kwargs
     ):
+        assert isinstance(classes_targets, list) and check_type_list(classes_targets, int)
         transform = transform if isinstance(transform, list) else []
-        transform = transforms.Compose(transform)
+        transform = tfms.Compose(transform)
         dataset   = torchvision.datasets.MNIST(root=root, train=train, download=download, transform=transform)
+        targets   = dataset.targets.numpy().copy()
+        targets   = torch.from_numpy(np.isin(targets, classes_targets))
+        dataset.data    = dataset.data[   targets, :, :]
+        dataset.targets = dataset.targets[targets]
         super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)
 
 
@@ -75,6 +110,55 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
     ):
         """
         see: http://host.robots.ox.ac.uk/pascal/VOC/voc2012/index.html
+        Usage Simple::
+            >>> from kktorch.data.dataloader import PASCALvoc2012DataLoader
+            >>> dataloader_train = PASCALvoc2012DataLoader(
+                    root='./data', train=True, download=True, batch_size=2, shuffle=False, drop_last=False, num_workers=1,
+                )
+            >>> dataloader_train[0]
+            (tensor([[[ [0.2275, 0.2078, 0.2157,  ..., 0.2431, 0.2745, 0.2471],
+                        [0.2588, 0.2078, 0.1961,  ..., 0.2706, 0.2314, 0.2275],
+                        [0.2588, 0.1725, 0.2039,  ..., 0.2667, 0.2549, 0.2510],
+                        ...,
+                        [0.3333, 0.3569, 0.3294,  ..., 0.2118, 0.2706, 0.2549],
+                        [0.3686, 0.3216, 0.3255,  ..., 0.2353, 0.2510, 0.2275],
+                        [0.3765, 0.3216, 0.2941,  ..., 0.2275, 0.1765, 0.1804]],
+
+                        [[0.2275, 0.2157, 0.2353,  ..., 0.3529, 0.3804, 0.3529],
+                        [0.2392, 0.2078, 0.2078,  ..., 0.3765, 0.3608, 0.3569],
+                        [0.2353, 0.1569, 0.2078,  ..., 0.3725, 0.3686, 0.3647],
+                        ...,
+                        [0.2549, 0.2902, 0.2745,  ..., 0.2118, 0.2196, 0.2039],
+                        [0.2863, 0.2549, 0.2706,  ..., 0.2431, 0.2353, 0.2118],
+                        [0.2941, 0.2549, 0.2392,  ..., 0.2353, 0.1922, 0.1961]],
+
+                        [[0.2275, 0.2039, 0.2118,  ..., 0.3647, 0.4157, 0.3882],
+                        [0.2549, 0.2078, 0.1804,  ..., 0.4039, 0.3882, 0.3843],
+                        [0.2353, 0.1529, 0.1882,  ..., 0.4078, 0.4000, 0.3961],
+                        ...,
+                        [0.2275, 0.2588, 0.2392,  ..., 0.1725, 0.1882, 0.1725],
+                        [0.2667, 0.2275, 0.2353,  ..., 0.2000, 0.1922, 0.1686],
+                        [0.2824, 0.2275, 0.1961,  ..., 0.1922, 0.1373, 0.1412]]]]), 
+                        tensor([[-1, -1, -1, -1, -1, -1, -1,  1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]]))
+        Usage with Augmentation::
+            >>> from torchvision import transforms
+            >>> from PIL import Image 
+            >>> from kktorch.data.dataloader import PASCALvoc2012DataLoader
+            >>> dataloader_train = PASCALvoc2012DataLoader(
+                    root='./data', train=True, download=True, batch_size=2, shuffle=False, drop_last=False, num_workers=1,
+                    transforms=transforms.Compose([
+                        transforms.RandomResizedCrop(224, scale=(0.4, 1.0), interpolation=Image.BICUBIC),
+                        transforms.RandomHorizontalFlip(p=0.5),
+                        transforms.RandomApply([transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)], p=0.8),
+                        transforms.RandomGrayscale(p=0.2),
+                        transforms.RandomApply([transforms.GaussianBlur(3)], p=0.5),
+                        transforms.ToTensor(),
+                        transforms.Normalize(
+                            PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
+                            PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_STD
+                        ),
+                    ])
+                )
         """
         self.dirpath = correct_dirpath(root) + "PASCALvoc2012/"
         # download

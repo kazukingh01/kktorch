@@ -98,7 +98,7 @@ if __name__ == "__main__":
     trainer.to_cuda()
 
     # training
-    #trainer.train()
+    trainer.train()
 
     # evaluation setup. multi crop 2 x 256x256
     dataloader_train = PASCALvoc2012DataLoader(

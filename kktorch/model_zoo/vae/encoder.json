@@ -1,0 +1,68 @@
+{
+    "name": "encoder",
+    "user_parameters": {
+        "___in_channels": 1,
+        "___init_dim": 8,
+        "___dim": 1024,
+        "___z": 64
+    },
+    "network": [
+        {
+            "class": "Conv2d",
+            "args": ["___in_channels", "___init_dim"],
+            "kwargs": {
+                "kernel_size": 1,
+                "stride": 1,
+                "padding": 0,
+                "bias": false
+            },
+            "out_features": "___init_dim"
+        },
+        {
+            "class": "ConfigModule",
+            "args": "encoder_block.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before"
+            },
+            "out_features": "__before * 2"
+        },
+        {
+            "class": "ConfigModule",
+            "args": "encoder_block.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before"
+            },
+            "out_features": "__before * 2"
+        },
+        {
+            "class": "ConfigModule",
+            "args": "encoder_block.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "in_features": "__before"
+            },
+            "out_features": "__before * 2"
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "___dim"]
+        },
+        {
+            "class": "Linear",
+            "args": ["___dim", "___z * 2"],
+            "kwargs": {
+                "bias": false
+            }
+        },
+        {
+            "class": "MiddleSaveOutput"
+        },
+        {
+            "class": "EvalModule",
+            "args": "input[:, :___z] + torch.exp(input[:, ___z:] * 0.5) * torch.normal(mean=0, std=torch.ones(input.shape[0], ___z )).to(input.device)"
+        }
+
+    ]
+}

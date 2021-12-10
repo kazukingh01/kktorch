@@ -9,11 +9,6 @@ from kktorch.nn.configmod import ConfigModule
 from kktorch.nn.loss import DINOLoss
 from kktorch.util.image.transforms import ResizeFixRatio
 
-from torch.nn import MultiheadAttention
-from torch.nn.functional import multi_head_attention_forward
-from torch.nn.init import trunc_normal_
-import torch.nn.utils.clip_grad
-
 
 class MyTrainer(Trainer):
     def process_data_train_pre(self, input):
@@ -138,7 +133,7 @@ if __name__ == "__main__":
     trainer.to_cuda()
 
     # training
-    #trainer.train()
+    trainer.train()
 
     # evaluation setup. multi crop 2 x 224x224
     dataloader_train = PASCALvoc2012DataLoader(

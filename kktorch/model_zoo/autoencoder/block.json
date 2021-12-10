@@ -1,0 +1,127 @@
+{
+    "name": "regidual_upsample",
+    "in_features": 512,
+    "user_parameters": {
+        "___size": 7,
+        "___kernel": 7,
+        "___stride": 1,
+        "___padding": 0
+    },
+    "network": [
+        {
+            "class": "RegidualModule",
+            "args": [
+                {
+                    "name": "upsample",
+                    "network": [
+                        {
+                            "class": "Conv2d",
+                            "args": ["in_features", "in_features // 2"],
+                            "kwargs": {
+                                "kernel_size": 1,
+                                "stride": 1,
+                                "padding": 0,
+                                "bias": false
+                            }
+                        },
+                        {
+                            "class": "EvalModule",
+                            "args": "torch.nn.functional.upsample(input, size=(input.shape[-2] * ___size, input.shape[-1] * ___size), mode='bilinear')"
+                        }
+                    ]
+                },
+                {
+                    "name": "regidual",
+                    "network": [
+                        {
+                            "class": "ConvTranspose2d",
+                            "args": ["in_features", "in_features // 2"],
+                            "kwargs": {
+                                "kernel_size": "___kernel",
+                                "stride": "___stride",
+                                "padding": "___padding",
+                                "bias": false
+                            }
+                        },
+                        {
+                            "class": "BatchNorm2d",
+                            "args": ["in_features // 2"]
+                        },
+                        {
+                            "class": "ReLU"
+                        },
+                        {
+                            "class": "Conv2d",
+                            "args": ["in_features // 2", "in_features // 2"],
+                            "kwargs": {
+                                "kernel_size": 3,
+                                "stride": 1,
+                                "padding": 1,
+                                "bias": false
+                            }
+                        },
+                        {
+                            "class": "BatchNorm2d",
+                            "args": ["in_features // 2"]
+                        },
+                        {
+                            "class": "ReLU"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "class": "RegidualModule",
+            "args": [
+                {
+                    "name": "ident",
+                    "network": [
+                        {
+                            "class": "Identity"
+                        }
+                    ]
+                },
+                {
+                    "name": "regidual",
+                    "network": [
+                        {
+                            "class": "Conv2d",
+                            "args": ["in_features // 2", "in_features // 2"],
+                            "kwargs": {
+                                "kernel_size": 3,
+                                "stride": 1,
+                                "padding": 1,
+                                "bias": false
+                            }
+                        },
+                        {
+                            "class": "BatchNorm2d",
+                            "args": ["in_features // 2"]
+                        },
+                        {
+                            "class": "ReLU"
+                        },
+                        {
+                            "class": "Conv2d",
+                            "args": ["in_features // 2", "in_features // 2"],
+                            "kwargs": {
+                                "kernel_size": 3,
+                                "stride": 1,
+                                "padding": 1,
+                                "bias": false
+                            }
+                        },
+                        {
+                            "class": "BatchNorm2d",
+                            "args": ["in_features // 2"]
+                        },
+                        {
+                            "class": "ReLU"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
