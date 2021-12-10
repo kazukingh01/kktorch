@@ -3,94 +3,32 @@
     "user_parameters": {
         "___in_channels": 1,
         "___z": 64,
-        "___dim": 512
+        "___init_size": 2,
+        "___alpha": 2,
+        "___n_layers": 3
     },
     "network": [
         {
             "class": "Linear",
-            "args": ["___z", "___dim"],
+            "args": ["___z", "___z * ___alpha * (___init_size ** 2)"],
             "kwargs": {
                 "bias": false
             }
         },
         {
             "class": "ReshapeInput",
-            "args": [-1, "___dim", 1, 1]
+            "args": [-1, "__before // (___init_size ** 2)", "___init_size", "___init_size"],
+            "out_features": "__before // (___init_size ** 2)"
         },
         {
-            "class": "ConfigModule",
-            "args": "block.json",
+            "class": "RepeatModule",
+            "args": "decoder_block.json",
             "kwargs": {
                 "dir_base_path": "__dirpath",
                 "in_features": "__before",
-                "user_parameters": {
-                    "___size": 7,
-                    "___kernel": 7,
-                    "___stride": 1,
-                    "___padding": 0
-                }
+                "n_layers": "___n_layers"
             },
-            "out_features": "__before // 2"
-        },
-        {
-            "class": "ConfigModule",
-            "args": "block.json",
-            "kwargs": {
-                "dir_base_path": "__dirpath",
-                "in_features": "__before",
-                "user_parameters": {
-                    "___size": 2,
-                    "___kernel": 4,
-                    "___stride": 2,
-                    "___padding": 1
-                }
-            },
-            "out_features": "__before // 2"
-        },
-        {
-            "class": "ConfigModule",
-            "args": "block.json",
-            "kwargs": {
-                "dir_base_path": "__dirpath",
-                "in_features": "__before",
-                "user_parameters": {
-                    "___size": 2,
-                    "___kernel": 4,
-                    "___stride": 2,
-                    "___padding": 1
-                }
-            },
-            "out_features": "__before // 2"
-        },
-        {
-            "class": "ConfigModule",
-            "args": "block.json",
-            "kwargs": {
-                "dir_base_path": "__dirpath",
-                "in_features": "__before",
-                "user_parameters": {
-                    "___size": 2,
-                    "___kernel": 4,
-                    "___stride": 2,
-                    "___padding": 1
-                }
-            },
-            "out_features": "__before // 2"
-        },
-        {
-            "class": "ConfigModule",
-            "args": "block.json",
-            "kwargs": {
-                "dir_base_path": "__dirpath",
-                "in_features": "__before",
-                "user_parameters": {
-                    "___size": 2,
-                    "___kernel": 4,
-                    "___stride": 2,
-                    "___padding": 1
-                }
-            },
-            "out_features": "__before // 2"
+            "out_features": "(___z * ___alpha) // (2 ** ___n_layers)"
         },
         {
             "class": "Conv2d",
@@ -101,9 +39,6 @@
                 "padding": 0,
                 "bias": false
             }
-        },
-        {
-            "class": "Sigmoid"
         }
     ]
 }

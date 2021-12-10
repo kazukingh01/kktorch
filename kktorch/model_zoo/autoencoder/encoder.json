@@ -2,36 +2,44 @@
     "name": "encoder",
     "user_parameters": {
         "___in_channels": 1,
-        "___z": 64,
-        "___dim": 512
+        "___init_dim": 8,
+        "___n_layers": 3,
+        "___z": 128
     },
     "network": [
         {
             "class": "Conv2d",
-            "args": ["___in_channels", 3],
+            "args": ["___in_channels", "___init_dim"],
             "kwargs": {
                 "kernel_size": 1,
                 "stride": 1,
                 "padding": 0,
                 "bias": false
-            }
+            },
+            "out_features": "___init_dim"
         },
         {
-            "class": "TimmModule",
-            "args": "resnet18",
+            "class": "RepeatModule",
+            "args": "encoder_block.json",
             "kwargs": {
-                "pretrained": false,
-                "set_ident_layers": [
-                    "fc"
-                ]
-            }
+                "dir_base_path": "__dirpath",
+                "in_features": "__before",
+                "n_layers": "___n_layers"
+            },
+            "out_features": "___init_dim * (2 ** ___n_layers)"
+        },
+        {
+            "class": "EvalModule",
+            "args": "torch.nn.functional.adaptive_avg_pool2d(input, (1,1))"
+        },
+        {
+            "class": "ReshapeInput",
+            "args": [-1, "__before"]
         },
         {
             "class": "Linear",
-            "args": ["___dim", "___z"],
-            "kwargs": {
-                "bias": false
-            }
+            "args": ["__before", "___z"],
+            "out_features": "___z"
         }
     ]
 }

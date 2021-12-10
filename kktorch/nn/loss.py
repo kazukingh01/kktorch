@@ -1,15 +1,18 @@
 from typing import List
 import torch
 from torch.nn.modules.loss import _Loss
+import torch.nn.functional as F
 
 
 __all__ = [
+    "IdentityLoss",
     "Accuracy",
     "CrossEntropyAcrossLoss",
     "CrossEntropySmoothingLoss",
     "SwAVLoss",
     "DINOLoss",
     "VAE_KLDLoss",
+    "SSIMLoss",
 ]
 
 
@@ -20,6 +23,7 @@ class BaseLoss(_Loss):
         self.is_check = True
         self.is_check_everytime = is_check_everytime
         self.output_reduction   = lambda x: x
+        self.reduction          = reduction
         if   self.reduction == "mean": self.output_reduction = torch.mean
         elif self.reduction == "sum":  self.output_reduction = torch.sum
     def forward(self, *args, **kwargs):
@@ -27,9 +31,16 @@ class BaseLoss(_Loss):
             self.check(*args, **kwargs)
             self.is_check = False
         return self.output_reduction(self.forward_child(*args, **kwargs))
-    def check(self): pass
+    def check(self, *args, **kwargs): pass
     def forward_child(self):
         raise NotImplementedError
+
+
+class IdentityLoss(BaseLoss):
+    def __init__(self):
+        super().__init__(reduction="ident", is_check_everytime=False)
+    def forward_child(self, _, __):
+        return 0
 
 
 class Accuracy(BaseLoss):
@@ -204,3 +215,61 @@ class VAE_KLDLoss(BaseLoss):
         input_z_mean, input_z_logsigma2 = input[:, :dim], input[:, dim:]
         loss = -0.5 * (1 + input_z_logsigma2 - input_z_mean ** 2 - torch.exp(input_z_logsigma2)).sum(axis=-1)
         return loss
+
+
+class SSIMLoss(BaseLoss):
+    def __init__(
+        self, window_size: int, n_channel: int, sigma: float=1.5, padding: int=0,
+        reduction: str='mean', is_check_everytime=False    
+    ):
+        """
+        https://github.com/Po-Hsun-Su/pytorch-ssim
+        """
+        super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
+        self.window_size  = window_size
+        self.n_channel    = n_channel
+        self.sigma        = sigma
+        self.padding      = padding
+        self.gauss_window = self.create_window(self.window_size, n_channel=self.n_channel, sigma=self.sigma)
+        L       = 1
+        self.C1 = (0.01 * L) ** 2
+        self.C2 = (0.03 * L) ** 2
+    @classmethod
+    def gaussian(cls, window_size: int, sigma: float=1.5):
+        from math import exp
+        gauss = torch.Tensor([exp(-(x - window_size//2)**2/float(2*sigma**2)) for x in range(window_size)])
+        return gauss/gauss.sum()
+    @classmethod
+    def create_window(cls, window_size: int, n_channel: int=1, sigma: float=1.5):
+        winsow_1d = SSIMLoss.gaussian(window_size, sigma).unsqueeze(1)
+        window_2d = winsow_1d.mm(winsow_1d.t()).float().unsqueeze(0).unsqueeze(0)
+        window    = window_2d.expand(n_channel, 1, window_size, window_size).contiguous()
+        return window
+    def check(self, input: torch.Tensor, target: torch.Tensor):
+        assert isinstance(input, torch.Tensor)  and len(input.shape)  == 4
+        assert isinstance(target, torch.Tensor) and len(target.shape) == 4
+        assert input.shape == target.shape
+        if self.is_check:
+            self.gauss_window = self.gauss_window.to(input.device)
+            # If 0 ~ 255 value range, L=255.
+            # If 0 ~ 1   value range, L=1.
+            if target.max().item() > 128:
+                self.C1 = (0.01 * 255) ** 2
+                self.C2 = (0.03 * 255) ** 2
+    def forward_child(self, input: torch.Tensor, target: torch.Tensor):
+        """
+        SSIM value is 0 ~ 1. value 1 means same image.
+        """
+        mu_input  = F.conv2d(input,  self.gauss_window, padding=self.padding, groups=self.n_channel)
+        mu_target = F.conv2d(target, self.gauss_window, padding=self.padding, groups=self.n_channel)
+        mu_input_sq  = mu_input. pow(2)
+        mu_target_sq = mu_target.pow(2)
+        mu_co        = mu_input * mu_target
+        sigma_input_sq  = F.conv2d(input  * input,  self.gauss_window, padding=self.padding, groups=self.n_channel) - mu_input_sq
+        sigma_target_sq = F.conv2d(target * target, self.gauss_window, padding=self.padding, groups=self.n_channel) - mu_target_sq
+        sigma_co        = F.conv2d(input  * target, self.gauss_window, padding=self.padding, groups=self.n_channel) - mu_co
+        numerator   = (2 * mu_co + self.C1) * (2 * sigma_co + self.C2)
+        denominator = (mu_input_sq + mu_target_sq + self.C1) * (sigma_input_sq + sigma_target_sq + self.C2)
+        loss        = numerator / denominator
+        return 1 - loss.mean(axis=-1).mean(axis=-1).mean(axis=-1)
+

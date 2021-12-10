@@ -13,8 +13,13 @@ kktorch/data/dataset.py
 kktorch/data/dataloader/__init__.py
 kktorch/data/dataloader/dataloader.py
 kktorch/data/dataloader/examples.py
+kktorch/model_zoo/autoencoder/autoencoder.json
+kktorch/model_zoo/autoencoder/block.json
+kktorch/model_zoo/autoencoder/decoder.json
+kktorch/model_zoo/autoencoder/encoder.json
 kktorch/model_zoo/dino/dino.json.bk
 kktorch/model_zoo/dino/dino_eff.json
+kktorch/model_zoo/dino/dino_timm_vit.json
 kktorch/model_zoo/dino/dino_vit.json
 kktorch/model_zoo/ffn/README.md
 kktorch/model_zoo/ffn/ffn.json
@@ -37,8 +42,14 @@ kktorch/model_zoo/node/middle_layer.json
 kktorch/model_zoo/node/node.json
 kktorch/model_zoo/node/odst.json
 kktorch/model_zoo/swav/swav.json
+kktorch/model_zoo/swav/swav_vit.json
 kktorch/model_zoo/timm/README.md
 kktorch/model_zoo/timm/timm.json
+kktorch/model_zoo/vae/decoder.json
+kktorch/model_zoo/vae/decoder_block.json
+kktorch/model_zoo/vae/encoder.json
+kktorch/model_zoo/vae/encoder_block.json
+kktorch/model_zoo/vae/vae.json
 kktorch/model_zoo/vit/block.json
 kktorch/model_zoo/vit/vit.json
 kktorch/nn/__init__.py
@@ -70,3 +81,4 @@ tests/train_node.py
 tests/train_swav.py
 tests/train_t5_jp_seq2seq.py
 tests/train_timm.py
+tests/train_vae.py

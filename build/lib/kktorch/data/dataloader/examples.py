@@ -3,9 +3,9 @@ import zipfile, tarfile
 from typing import Callable, Union, List
 import pandas as pd
 import numpy as np
-
 import torch, torchvision
 
+import kktorch
 from kktorch.data.dataset import DataframeDataset, ImageDataset
 from kktorch.util.com import check_type_list, correct_dirpath, makedirs
 from kktorch.util.files import download_file
@@ -21,6 +21,9 @@ __all__ = [
     "NewsPaperDataLoader",
     "LivedoorNewsDataLoader",
 ]
+
+
+ROOTDATADIR=f"{correct_dirpath(kktorch.__path__[0])}/__data__"
 
 
 def split_train_test(index: int, seed: int=0, percent: float=0.8):
@@ -82,7 +85,7 @@ class MNISTDataLoader(BaseDataLoader):
         torch.Size([2])
     """
     def __init__(
-        self, root: str='./data', train: bool=True, download: bool=True, 
+        self, root: str=ROOTDATADIR, train: bool=True, download: bool=True, 
         transform=[tfms.ToTensor(), ], 
         dtype_data=torch.float32, dtype_target=torch.long, 
         classes_targets: List[int] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -103,7 +106,7 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
     PASCALVOC2012_DEFAULT_MEAN = (0.4587, 0.4380, 0.4017)
     PASCALVOC2012_DEFAULT_STD  = (0.2749, 0.2722, 0.2870)
     def __init__(
-        self, root: str='./data', train: bool=True, download: bool=True, 
+        self, root: str=ROOTDATADIR, train: bool=True, download: bool=True, 
         transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([
             tfms.ToTensor(),
         ]), **kwargs
@@ -187,7 +190,7 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
 
 class NewsPaperDataLoader(TextDataLoader):
     def __init__(
-        self, tokenizer: Callable, root: str='./data', train: bool=True, download: bool=True, **kwargs
+        self, tokenizer: Callable, root: str=ROOTDATADIR, train: bool=True, download: bool=True, **kwargs
     ):
         """
         see: https://archive.ics.uci.edu/ml/datasets/News+Aggregator
@@ -215,7 +218,7 @@ class NewsPaperDataLoader(TextDataLoader):
 
 class LivedoorNewsDataLoader(TextDataLoader):
     def __init__(
-        self, tokenizer: Callable, root: str='./data', train: bool=True, download: bool=True, columns=["text", "label"], **kwargs
+        self, tokenizer: Callable, root: str=ROOTDATADIR, train: bool=True, download: bool=True, columns=["text", "label"], **kwargs
     ):
         """
         see: https://www.rondhuit.com/download.html#ldcc

@@ -7,7 +7,6 @@ from kktorch.util.com import replace_sp_str_and_eval
 
 __all__ = [
     "ConfigModule",
-    "SkipConnection",
     "RepeatModule",
     "SplitModule",
     "ApplyModule",
@@ -68,7 +67,8 @@ class ConfigModule(nn.Module):
                     grad_fn=<ReluBackward0>)
         """
         super().__init__()
-        fname = (dir_base_path + config) if isinstance(config, str) and config[-5:] == ".json" else None
+        self.is_call_first = is_call_first
+        fname            = (("" if self.is_call_first else dir_base_path) + config) if isinstance(config, str) and config[-5:] == ".json" else None
         self.config      = json.load(open(fname)) if fname is not None else config
         self.name        = self.config["name"]
         self.dirpath     = os.path.dirname(fname) + "/" if fname is not None else dir_base_path
@@ -118,7 +118,6 @@ class ConfigModule(nn.Module):
         self.is_debug          = False
         self.is_middle_release = False
         self.middle_mod        = []
-        self.is_call_first     = is_call_first
         if self.is_call_first:
             for module in self.modules():
                 if isinstance(module, nn.MiddleSaveOutput): self.middle_mod.append(module)
@@ -195,18 +194,15 @@ class ConfigModule(nn.Module):
         return None
 
 
-class SkipConnection(ConfigModule):
-    def forward(self, input: torch.Tensor):
-        _input = input.clone()
-        output = super().forward(input)
-        return _input + output
-
-
 class RepeatModule(nn.Module):
     def __init__(self, *args, n_layers: int=1, **kwargs):
         super().__init__()
         assert isinstance(n_layers, int) and n_layers >= 1
-        self.list_module = nn.ModuleList([ConfigModule(*args, **kwargs) for _ in range(n_layers)])
+        list_module = []
+        for _ in range(n_layers):
+            list_module.append(ConfigModule(*args, **kwargs))
+            kwargs["in_features"] = list_module[-1].out_features
+        self.list_module = nn.ModuleList(list_module)
     def forward(self, input: torch.Tensor):
         output = input
         for module in self.list_module: output = module(output)

@@ -60,6 +60,7 @@ class Trainer:
             ### loss functions ###
             losses_train:
                 training loss. The instance defined in "_Loss". 
+                Require all losses to be backprobpagated.
                 If a model has multiple outputs, define multiple outputs in list format.
                 ex) 2 output
                     [Output1_Loss1, Output1_Loss2]
@@ -68,7 +69,8 @@ class Trainer:
             losses_valid:
                 validation loss. There may be more than one evaluation metric, so if there are more than one, define them as follows
                 ex) 2 output, 3 (2 + 1)  losses
-                    [[Output1_Loss1, Output1_Loss2], [Output2_Loss3, ]]
+                    losses_valid = [[Accuracy, AUC], [MSE]]
+                    [[Output1_Accuracy, Output1_AUC], [Output2_MSE, ]]
             losses_train_name, losses_valid_name:
                 The name to display in tensorboard. Does not have to be defined.
             ### optimizer ###
@@ -213,7 +215,7 @@ epoch : {self.epoch}
 
     def check_init(self):
         assert check_type_list(self.losses_train, _Loss)
-        assert check_type_list(self.losses_valid, list, _Loss)
+        assert check_type_list(self.losses_valid, _Loss) or check_type_list(self.losses_valid, [list, _Loss], _Loss)
         if isinstance(self.losses_train_weight, list):
             assert check_type_list(self.losses_train_weight, float)
             assert len(self.losses_train_weight) == len(self.losses_train)
@@ -221,7 +223,7 @@ epoch : {self.epoch}
             assert isinstance(self.losses_train_weight, float)
         if len(self.losses_train_name)   > 0: assert len(self.losses_train_name  ) == len(self.losses_train)
         if len(self.losses_valid_name)   > 0:
-            assert check_type_list(self.losses_valid_name, list, str)
+            assert check_type_list(self.losses_valid_name, str)
             assert len(convert_1d_array(self.losses_valid_name)) == len(convert_1d_array(self.losses_valid))
         assert self.dataloader_train is None or isinstance(self.dataloader_train, DataLoader)
         assert check_type_list(self.dataloader_valids, DataLoader)
@@ -398,7 +400,7 @@ epoch : {self.epoch}
         """
         Calculate the loss. Processing of "self.processes()" is also done internally.
         """
-        def work(input, label, processes, loss_funcs, loss_funcs_weight=1.0, is_valid=False):
+        def work(self, input, label, processes, loss_funcs, loss_funcs_weight=1.0, is_valid=False):
             output, label = processes(input, label=label, is_valid=is_valid)
             if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
                 logger.info(f'iter: {self.i_epoch}|{self.iter}.\nSample output: \n{output}\nSample output label: \n{label}')
@@ -419,16 +421,16 @@ epoch : {self.epoch}
         loss, losses = 0, []
         if is_valid:
             with torch.no_grad():
-                loss, losses = work(input, label, self.processes, self.losses_valid, is_valid=is_valid)
+                loss, losses = work(self, input, label, self.processes, self.losses_valid, is_valid=is_valid)
         else:
-            loss, losses = work(input, label, self.processes, self.losses_train, loss_funcs_weight=self.losses_train_weight, is_valid=is_valid)
+            loss, losses = work(self, input, label, self.processes, self.losses_train, loss_funcs_weight=self.losses_train_weight, is_valid=is_valid)
         loss = loss / self.accumulation_step
         return loss, losses
     
     def write_tensor_board(self, name: str, value):
         if hasattr(value, "to"):
             value = value.detach().to("cpu").item()
-        self.writer.add_scalar(name, value, self.iter)
+        self.writer.add_scalar(name, value, global_step=self.iter)
     
     def preproc_update_weight(self): pass
     def aftproc_update_weight(self): pass
@@ -484,7 +486,7 @@ epoch : {self.epoch}
             # tensor board
             self.write_tensor_board(f"validation{i_valid}/total_loss", loss_valid)
             for i_loss, _loss in enumerate(losses_valid):
-                name = self.losses_valid_name[i_valid][i_loss] if len(self.losses_train_name) > 0 else f"loss_{i_loss}"
+                name = self.losses_valid_name[i_loss] if len(self.losses_valid_name) > 0 else f"loss_{i_loss}"
                 self.write_tensor_board(f"validation{i_valid}/{name}", _loss)
             self.early_stopping_iter += 1
             # early stopping conditions
