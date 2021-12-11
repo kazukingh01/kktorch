@@ -14,9 +14,11 @@ kktorch/data/dataloader/__init__.py
 kktorch/data/dataloader/dataloader.py
 kktorch/data/dataloader/examples.py
 kktorch/model_zoo/autoencoder/autoencoder.json
-kktorch/model_zoo/autoencoder/block.json
 kktorch/model_zoo/autoencoder/decoder.json
+kktorch/model_zoo/autoencoder/decoder_block.json
 kktorch/model_zoo/autoencoder/encoder.json
+kktorch/model_zoo/autoencoder/encoder_block.json
+kktorch/model_zoo/autoencoder/vae.json
 kktorch/model_zoo/dino/dino.json.bk
 kktorch/model_zoo/dino/dino_eff.json
 kktorch/model_zoo/dino/dino_timm_vit.json
@@ -81,4 +83,6 @@ tests/train_node.py
 tests/train_swav.py
 tests/train_t5_jp_seq2seq.py
 tests/train_timm.py
-tests/train_vae.py
+tests/image/autoencoder/normal/imgrec.png
+tests/image/autoencoder/normal/t-sne.png
+tests/image/autoencoder/normal/train.py

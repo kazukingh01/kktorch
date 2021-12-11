@@ -10,6 +10,7 @@ from kktorch.data.dataloader import MNISTDataLoader
 from kktorch.nn.configmod import ConfigModule
 from kktorch.nn.loss import IdentityLoss, SSIMLoss
 
+
 class MyTrainer(Trainer):
     def process_label_pre(self, label, input):
         # return label as input for image reconstruction

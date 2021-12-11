@@ -1,6 +1,7 @@
 import os, datetime, random, copy, time
 from typing import List, Union
 import numpy as np
+from numpy.lib.arraysetops import isin
 
 import torch
 from torch import nn
@@ -260,10 +261,11 @@ epoch : {self.epoch}
         except AttributeError: pass
         if weight is None: pass
         elif isinstance(weight, str) and weight == "norm":
-            if hasattr(module, "weight"):
-                torch.nn.utils.weight_norm(module, "weight")
-            if hasattr(module, "bias"):
-                torch.nn.utils.weight_norm(module, "bias")
+            if type(module) in [torch.nn.Linear, torch.nn.Conv1d, torch.nn.Conv2d]:
+                if hasattr(module, "weight") and isinstance(module.weight, torch.nn.parameter.Parameter):
+                    torch.nn.utils.weight_norm(module, "weight")
+                if hasattr(module, "bias") and isinstance(module.bias, torch.nn.parameter.Parameter):
+                    torch.nn.utils.weight_norm(module, "bias")
         else:
             try: module.weight.data.fill_(weight)
             except AttributeError: pass

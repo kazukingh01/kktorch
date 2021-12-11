@@ -39,6 +39,9 @@
         {
             "class": "Linear",
             "args": ["__before", "___z"],
+            "kwargs": {
+                "bias": false
+            },
             "out_features": "___z"
         }
     ]

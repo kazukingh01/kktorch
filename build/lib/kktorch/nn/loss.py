@@ -213,7 +213,7 @@ class VAE_KLDLoss(BaseLoss):
         """
         dim = input.shape[1] // 2
         input_z_mean, input_z_logsigma2 = input[:, :dim], input[:, dim:]
-        loss = -0.5 * (1 + input_z_logsigma2 - input_z_mean ** 2 - torch.exp(input_z_logsigma2)).sum(axis=-1)
+        loss = -0.5 * (1 + input_z_logsigma2 - (input_z_mean ** 2) - torch.exp(input_z_logsigma2)).sum(axis=-1)
         return loss
 
 

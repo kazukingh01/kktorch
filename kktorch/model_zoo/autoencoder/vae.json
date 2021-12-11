@@ -2,9 +2,12 @@
     "name": "vae",
     "user_parameters": {
         "___in_channels": 1,
+        "___init_dim": 8,
+        "___n_layers_en": 3,
+        "___n_layers_de": 3,
         "___z": 64,
-        "___dim1": 1024,
-        "___dim2": 512
+        "___init_size": 2,
+        "___alpha": 2
     },
     "network": [
         {
@@ -14,10 +17,18 @@
                 "dir_base_path": "__dirpath",
                 "user_parameters": {
                     "___in_channels": "___in_channels",
-                    "___z": "___z",
-                    "___dim": "___dim1"
+                    "___init_dim": "___init_dim",
+                    "___n_layers": "___n_layers_en",
+                    "___z": "___z * 2"
                 }
             }
+        },
+        {
+            "class": "MiddleSaveOutput"
+        },
+        {
+            "class": "EvalModule",
+            "args": "input[:, :___z] + torch.exp(input[:, ___z:] * 0.5) * torch.normal(mean=0, std=torch.ones(input.shape[0], ___z )).to(input.device)"
         },
         {
             "class": "ConfigModule",
@@ -26,10 +37,15 @@
                 "dir_base_path": "__dirpath",
                 "user_parameters": {
                     "___in_channels": "___in_channels",
+                    "___n_layers": "___n_layers_de",
                     "___z": "___z",
-                    "___dim": "___dim2"
+                    "___init_size": "___init_size",
+                    "___alpha": "___alpha"
                 }
             }
+        },
+        {
+            "class": "Sigmoid"
         }
     ]
 }
