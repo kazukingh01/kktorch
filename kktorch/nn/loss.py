@@ -254,8 +254,9 @@ class SSIMLoss(BaseLoss):
             # If 0 ~ 255 value range, L=255.
             # If 0 ~ 1   value range, L=1.
             if target.max().item() > 128:
-                self.C1 = (0.01 * 255) ** 2
-                self.C2 = (0.03 * 255) ** 2
+                L       = 255
+                self.C1 = (0.01 * L) ** 2
+                self.C2 = (0.03 * L) ** 2
     def forward_child(self, input: torch.Tensor, target: torch.Tensor):
         """
         SSIM value is 0 ~ 1. value 1 means same image.

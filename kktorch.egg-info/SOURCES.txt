@@ -86,3 +86,4 @@ tests/train_timm.py
 tests/image/autoencoder/normal/imgrec.png
 tests/image/autoencoder/normal/t-sne.png
 tests/image/autoencoder/normal/train.py
+tests/image/autoencoder/vae/train.py
