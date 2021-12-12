@@ -4,6 +4,7 @@
         "___n_layer": 12,
         "___n_dim": 512,
         "___n_head": 8,
+        "___in_channels": 3,
         "___dropout_p": 0.0,
         "___patch_size": 16,
         "___img_size": 224
@@ -17,7 +18,7 @@
             "class": "PatchEmbed",
             "kwargs": {
                 "patch_size": "___patch_size",
-                "in_channels": 3,
+                "in_channels": "___in_channels",
                 "out_dim": "___n_dim"
             }
         },

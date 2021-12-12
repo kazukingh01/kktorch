@@ -7,78 +7,98 @@
     },
     "network": [
         {
-            "class": "SkipConnection",
-            "args": {
-                "name": "selfattn",
-                "network": [
-                    {
-                        "class": "LayerNorm",
-                        "args": "___n_dim"
-                    },
-                    {
-                        "class": "MultiHeadSelfAttention",
-                        "args": "___n_dim",
-                        "kwargs": {
-                            "num_heads": "___n_head",
-                            "qkv_bias": false,
-                            "qk_scale": null,
-                            "p_drop_attn": "___dropout_p",
-                            "p_drop_proj": "___dropout_p"
+            "class": "RegidualModule",
+            "args": [
+                {
+                    "name": "ident",
+                    "network": [
+                        {
+                            "class": "Identity"
                         }
-                    },
-                    {
-                        "class": "SelectIndexListInput",
-                        "args": 0
-                    },
-                    {
-                        "class": "DropBatch",
-                        "kwargs": {
-                            "p": "___dropout_p"
+                    ]
+                },
+                {
+                    "name": "selfattn",
+                    "network": [
+                        {
+                            "class": "LayerNorm",
+                            "args": "___n_dim"
+                        },
+                        {
+                            "class": "MultiHeadSelfAttention",
+                            "args": "___n_dim",
+                            "kwargs": {
+                                "num_heads": "___n_head",
+                                "qkv_bias": false,
+                                "qk_scale": null,
+                                "p_drop_attn": "___dropout_p",
+                                "p_drop_proj": "___dropout_p"
+                            }
+                        },
+                        {
+                            "class": "SelectIndexListInput",
+                            "args": 0
+                        },
+                        {
+                            "class": "DropBatch",
+                            "kwargs": {
+                                "p": "___dropout_p"
+                            }
                         }
-                    }
-                ]
-            }
+                    ]
+                }
+            ]
        },
        {
-            "class": "SkipConnection",
-            "args": {
-                "name": "mlp",
-                "network": [
-                    {
-                        "class": "LayerNorm",
-                        "args": "___n_dim"
-                    },
-                    {
-                        "class": "Linear",
-                        "args": ["___n_dim", "___n_dim * 4"]
-                    },
-                    {
-                        "class": "GELU"
-                    },
-                    {
-                        "class": "Dropout",
-                        "kwargs": {
-                            "p": "___dropout_p"
+            "class": "RegidualModule",
+            "args": [
+                {
+                    "name": "ident",
+                    "network": [
+                        {
+                            "class": "Identity"
                         }
-                    },
-                    {
-                        "class": "Linear",
-                        "args": ["___n_dim * 4", "___n_dim"]
-                    },
-                    {
-                        "class": "Dropout",
-                        "kwargs": {
-                            "p": "___dropout_p"
+                    ]
+                },
+                {
+                    "name": "mlp",
+                    "network": [
+                        {
+                            "class": "LayerNorm",
+                            "args": "___n_dim"
+                        },
+                        {
+                            "class": "Linear",
+                            "args": ["___n_dim", "___n_dim * 4"]
+                        },
+                        {
+                            "class": "GELU"
+                        },
+                        {
+                            "class": "Dropout",
+                            "kwargs": {
+                                "p": "___dropout_p"
+                            }
+                        },
+                        {
+                            "class": "Linear",
+                            "args": ["___n_dim * 4", "___n_dim"]
+                        },
+                        {
+                            "class": "Dropout",
+                            "kwargs": {
+                                "p": "___dropout_p"
+                            }
+                        },
+                        {
+                            "class": "DropBatch",
+                            "kwargs": {
+                                "p": "___dropout_p"
+                            }
                         }
-                    },
-                    {
-                        "class": "DropBatch",
-                        "kwargs": {
-                            "p": "___dropout_p"
-                        }
-                    }
-                ]
-            }
+                    ]
+                }
+            ]
         }
    ]
 }
