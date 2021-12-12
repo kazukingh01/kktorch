@@ -116,8 +116,8 @@ class Trainer:
         self.losses_train = losses_train if isinstance(losses_train, list) else ([losses_train]   if losses_train is not None else [])
         self.losses_valid = losses_valid if isinstance(losses_valid, list) else ([[losses_valid]] if losses_valid is not None else [])
         self.losses_train_weight = losses_train_weight if losses_train_weight is not None else 1.0
-        self.losses_train_name = losses_train_name if isinstance(losses_train_name, list) else ([losses_train_name]   if losses_train_name is not None else [])
-        self.losses_valid_name = losses_valid_name if isinstance(losses_valid_name, list) else ([[losses_valid_name]] if losses_valid_name is not None else [])
+        self.losses_train_name = losses_train_name if isinstance(losses_train_name, list) else ([losses_train_name] if losses_train_name is not None else [])
+        self.losses_valid_name = losses_valid_name if isinstance(losses_valid_name, list) else ([losses_valid_name] if losses_valid_name is not None else [])
         self.adjust_output_size_front = adjust_output_size_front
         self.adjust_output_size_back  = adjust_output_size_back
         self.adjust_target_size_front = adjust_target_size_front
@@ -222,8 +222,8 @@ epoch : {self.epoch}
             assert len(self.losses_train_weight) == len(self.losses_train)
         else:
             assert isinstance(self.losses_train_weight, float)
-        if len(self.losses_train_name)   > 0: assert len(self.losses_train_name  ) == len(self.losses_train)
-        if len(self.losses_valid_name)   > 0:
+        if len(self.losses_train_name) > 0: assert len(self.losses_train_name  ) == len(self.losses_train)
+        if len(self.losses_valid_name) > 0:
             assert check_type_list(self.losses_valid_name, str)
             assert len(convert_1d_array(self.losses_valid_name)) == len(convert_1d_array(self.losses_valid))
         assert self.dataloader_train is None or isinstance(self.dataloader_train, DataLoader)

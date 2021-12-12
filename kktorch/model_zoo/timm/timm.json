@@ -20,6 +20,9 @@
         {
             "class": "Linear",
             "args": [1000, "___n_classes"]
+        },
+        {
+            "class": "Sigmoid"
         }
    ]
 }

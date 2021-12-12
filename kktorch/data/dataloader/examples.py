@@ -86,17 +86,17 @@ class MNISTDataLoader(BaseDataLoader):
     """
     def __init__(
         self, root: str=ROOTDATADIR, train: bool=True, download: bool=True, 
-        transform=[tfms.ToTensor(), ], 
+        transforms=[tfms.ToTensor(), ], 
         dtype_data=torch.float32, dtype_target=torch.long, 
         classes_targets: List[int] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         **kwargs
     ):
         assert isinstance(classes_targets, list) and check_type_list(classes_targets, int)
-        transform = transform if isinstance(transform, list) else []
-        transform = tfms.Compose(transform)
-        dataset   = torchvision.datasets.MNIST(root=root, train=train, download=download, transform=transform)
-        targets   = dataset.targets.numpy().copy()
-        targets   = torch.from_numpy(np.isin(targets, classes_targets))
+        transforms = transforms if isinstance(transforms, list) else []
+        transforms = tfms.Compose(transforms)
+        dataset    = torchvision.datasets.MNIST(root=root, train=train, download=download, transform=transforms)
+        targets    = dataset.targets.numpy().copy()
+        targets    = torch.from_numpy(np.isin(targets, classes_targets))
         dataset.data    = dataset.data[   targets, :, :]
         dataset.targets = dataset.targets[targets]
         super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)
@@ -109,10 +109,19 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
         self, root: str=ROOTDATADIR, train: bool=True, download: bool=True, 
         transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([
             tfms.ToTensor(),
-        ]), **kwargs
+        ]), is_label_two_class: bool=False,
+        dtype_data=torch.float32, dtype_target=torch.long,
+        **kwargs
     ):
         """
         see: http://host.robots.ox.ac.uk/pascal/VOC/voc2012/index.html
+        Labels::
+            http://host.robots.ox.ac.uk/pascal/VOC/voc2012/htmldoc/devkit_doc.html
+            There are three ground truth labels:
+            -1: Negative: The image contains no objects of the class of interest. A classifier should give a `negative' output.
+             1: Positive: The image contains at least one object of the class of interest. A classifier should give a `positive' output.
+             0: ``Difficult'': The image contains only objects of the class of interest marked as `difficult'.
+
         Usage Simple::
             >>> from kktorch.data.dataloader import PASCALvoc2012DataLoader
             >>> dataloader_train = PASCALvoc2012DataLoader(
@@ -180,12 +189,15 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
         df_train = df.loc[df["id"].isin(indexes_train)].copy()
         df_test  = df.loc[df["id"].isin(indexes_test) ].copy()
         self.df  = df_train if train else df_test
+        if is_label_two_class:
+            columns = self.df.columns[df.columns.str.contains("^label_")]
+            self.df.loc[:, columns] = self.df.loc[:, columns].replace(0, 1).replace(-1, 0).astype(int)
         dataset  = ImageDataset(
             self.df["filepath"].values.tolist(), 
             self.df.loc[:, self.df.columns[self.df.columns.str.contains("^label_")].tolist()].astype(int).values.tolist(),
             transforms=transforms
         )
-        super().__init__(dataset, dtype_data=torch.float32, dtype_target=torch.long, **kwargs)
+        super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)
 
 
 class NewsPaperDataLoader(TextDataLoader):

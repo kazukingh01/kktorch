@@ -35,14 +35,14 @@ if __name__ == "__main__":
     # dataloader
     dataloader_train = MNISTDataLoader(
         train=True, download=True, batch_size=64, shuffle=True,
-        transform=[
+        transforms=[
             tfms.Resize(64, interpolation=Image.BICUBIC),
             tfms.ToTensor(), 
         ]
     )
     dataloader_valid = MNISTDataLoader(
         train=False, download=True, batch_size=64, shuffle=False,
-        transform=[
+        transforms=[
             tfms.Resize(64, interpolation=Image.BICUBIC),
             tfms.ToTensor(), 
         ]

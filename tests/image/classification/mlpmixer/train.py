@@ -27,13 +27,13 @@ if __name__ == "__main__":
     # dataloader
     dataloader_train = MNISTDataLoader(
         train=True, download=True, batch_size=128, shuffle=True,
-        transform=[
+        transforms=[
             tfms.ToTensor(), 
         ]
     )
     dataloader_valid = MNISTDataLoader(
         train=False, download=True, batch_size=128, shuffle=False,
-        transform=[
+        transforms=[
             tfms.ToTensor(), 
         ]
     )
