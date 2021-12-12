@@ -1,4 +1,4 @@
-# Variational Autoencoder
+# Autoencoder
 
 ## How to use
 ```

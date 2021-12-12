@@ -78,7 +78,6 @@ tests/train_bert_jp_classify.py
 tests/train_dino.py
 tests/train_ffn.py
 tests/train_ffn_skip.py
-tests/train_mlpmixer.py
 tests/train_node.py
 tests/train_swav.py
 tests/train_t5_jp_seq2seq.py
@@ -86,4 +85,7 @@ tests/train_timm.py
 tests/image/autoencoder/normal/imgrec.png
 tests/image/autoencoder/normal/t-sne.png
 tests/image/autoencoder/normal/train.py
+tests/image/autoencoder/vae/README.md
+tests/image/autoencoder/vae/imgrec.png
+tests/image/autoencoder/vae/t-sne.png
 tests/image/autoencoder/vae/train.py
