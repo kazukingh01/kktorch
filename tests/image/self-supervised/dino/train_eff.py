@@ -56,55 +56,45 @@ class TeacherStudent(torch.nn.Module):
                 param_t.data.mul_(self.update_rate).add_((1 - self.update_rate) * param_s.detach().data)
 
 
-if __name__ == "__main__":
-    # config file
-    fjson = "../kktorch/model_zoo/dino/dino_eff.json"
+def aug_train(size: int, scale=(0.4, 1.0), p_blue: float=1.0, p_sol: float=0.0):
+    return transforms.Compose([
+        transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomApply([transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)], p=0.8),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.RandomApply([transforms.GaussianBlur(3)], p=p_blue),
+        transforms.RandomSolarize(128.0, p=p_sol),
+        transforms.ToTensor(),
+        transforms.Normalize(
+            PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
+            PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_STD
+        ),
+    ])
+def aug_valid(size: int, scale=(0.4, 1.0)):
+    return transforms.Compose([
+        transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
+        transforms.ToTensor(),
+        transforms.Normalize(
+            PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
+            PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_STD
+        ),
+    ])
 
+
+if __name__ == "__main__":
     # load config file and create network
     network = ConfigModule(
-        fjson,
-        ## You can override the config settings.
+        f"/{kktorch.__path__[0]}/model_zoo/dino/dino_eff.json", 
         user_parameters={
-            # "___n_layer": 12,
-            # "___n_dim": 192,
-            # "___n_head": 3,
-            # "___dropout_p": 0.0,
-            # "___patch_size": 16,
-            # "___img_size": 224,
-            # "___n_projection": 64
             "___n_dim": 1280,
             "___n_projection": 128
         },
     )
     network = TeacherStudent(network, update_rate=0.996)
 
-    def aug_train(size: int, scale=(0.4, 1.0), p_blue: float=1.0, p_sol: float=0.0):
-        return transforms.Compose([
-            transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomApply([transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)], p=0.8),
-            transforms.RandomGrayscale(p=0.2),
-            transforms.RandomApply([transforms.GaussianBlur(3)], p=p_blue),
-            transforms.RandomSolarize(128.0, p=p_sol),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
-                PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_STD
-            ),
-        ])
-    def aug_valid(size: int, scale=(0.4, 1.0)):
-        return transforms.Compose([
-            transforms.RandomResizedCrop(size, scale=scale, interpolation=Image.BICUBIC),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_MEAN, 
-                PASCALvoc2012DataLoader.PASCALVOC2012_DEFAULT_STD
-            ),
-        ])
-
     # dataloader. multi crop 2 x 224x224, 4 x 96x96
     dataloader_train = PASCALvoc2012DataLoader(
-        root='./data', train=True, download=True, batch_size=36, shuffle=True, drop_last=True,
+        train=True, download=True, batch_size=36, shuffle=True, drop_last=True,
         transforms=[
             aug_train(224, scale=(0.4, 1.0),  p_blue=1.0, p_sol=0.0),
             aug_train(224, scale=(0.4, 1.0),  p_blue=0.1, p_sol=0.2),
@@ -166,7 +156,7 @@ if __name__ == "__main__":
     x_train = x_train.mean(axis=1) # mean multi crop output
     x_valid = x_valid.mean(axis=1) # mean multi crop output
 
-        # knn
+    # knn
     import faiss
     index = faiss.IndexFlatL2(x_train.shape[-1])
     index.add(x_train.astype(np.float32))
