@@ -92,6 +92,7 @@ if __name__ == "__main__":
     for i , v in enumerate(np.unique(label_cls)):
         ndf_bool = (label_cls == v)
         plt.scatter(ndf_tsne[ndf_bool, 0], ndf_tsne[ndf_bool, 1], label=v, color=colors[i], s=5, alpha=0.5)
+    plt.legend()
     plt.savefig("t-sne.png")
     plt.show()
     

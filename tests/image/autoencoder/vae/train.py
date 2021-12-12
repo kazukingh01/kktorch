@@ -65,16 +65,37 @@ if __name__ == "__main__":
     # training
     trainer.train()
 
-    # test
-    ndf, label = trainer.predict(dataloader=dataloader_train, is_label=True, sample_size=3)
+    # preview
+    ndf, label = trainer.predict(dataloader=dataloader_valid, is_label=True, sample_size=-1)
     output = network.vae[3](torch.from_numpy(ndf[0][:, :dim_z]).to("cuda").to(torch.float32))
     output = torch.nn.Sigmoid()(output)
     output = (output.to("cpu").detach().numpy() * 255).astype(np.uint8)
-    for i in range(output.shape[0]):
-        cv2.imshow("test", output[i, 0])
-        cv2.waitKey(0)
+    img_gt = (label[1] * 255).astype(np.uint8)
+    output = np.concatenate([img_gt, output], axis=-1)
+    img    = None
+    for i in range(8):
+        imgwk = np.concatenate([output[i*16+j, 0, :, :] for j in range(16)], axis=0)
+        if img is None:
+            img = imgwk
+        else:
+            img = np.concatenate([img, imgwk], axis=-1)
+    cv2.imshow("test", img)
+    cv2.waitKey(0)
+    cv2.imwrite("./imgrec.png", img)
 
-    output = (label[1] * 255).astype(np.uint8)
-    for i in range(output.shape[0]):
-        cv2.imshow("test", output[i, 0])
-        cv2.waitKey(0)
+    # t-SNE
+    import matplotlib.pyplot as plt
+    from sklearn.manifold import TSNE
+    ndf_z, _ = ndf
+    ndf_z    = ndf_z[:, :ndf_z.shape[-1]//2]
+    label_cls, _ = label
+    tsne     = TSNE(n_components=2, random_state=0, perplexity=30, n_iter=1000)
+    ndf_tsne = tsne.fit_transform(ndf_z)
+    colors   =  ["r", "g", "b", "c", "m", "y", "k", "orange","pink", "gray"]
+    plt.figure(figsize = (6, 4))
+    for i , v in enumerate(np.unique(label_cls)):
+        ndf_bool = (label_cls == v)
+        plt.scatter(ndf_tsne[ndf_bool, 0], ndf_tsne[ndf_bool, 1], label=v, color=colors[i], s=5, alpha=0.5)
+    plt.legend()
+    plt.savefig("t-sne.png")
+    plt.show()
