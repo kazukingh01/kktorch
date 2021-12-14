@@ -28,6 +28,7 @@ Weight is trained with [PASCALvoc2012D](http://host.robots.ox.ac.uk/pascal/VOC/v
 5823 2068 acc: 0.35514339687446334
 
 # KNN
+The leftmost image is the test image, and the rightmost image is the train with k=10 neighborhood.
 ## ViT
 ![](./knn_vit.png)
 

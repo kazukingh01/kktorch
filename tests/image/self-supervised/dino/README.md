@@ -22,12 +22,13 @@ Weight is trained with [PASCALvoc2012D](http://host.robots.ox.ac.uk/pascal/VOC/v
 - [EfficientNet](https://drive.google.com/file/d/1_MAHKyJsdT4RouqHuO_OtLdfZQJjP-tC/view?usp=sharing)
 
 # Accuracy
-- ViT
+- ViT<br>
 5823 2105 acc: 0.3614975098746351
-- EfficientNet
+- EfficientNet<br>
 5823 2655 acc: 0.4559505409582689
 
 # KNN
+The leftmost image is the test image, and the rightmost image is the train with k=10 neighborhood.
 ## ViT
 ![](./knn_vit.png)
 
