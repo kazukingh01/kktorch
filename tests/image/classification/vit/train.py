@@ -1,3 +1,4 @@
+from kktorch.util.image.numpy import pil2cv
 import numpy as np
 import cv2
 import torch
@@ -8,6 +9,7 @@ import kktorch.util.image as tfms
 from kktorch.trainer.base import Trainer
 from kktorch.data.dataloader import PASCALvoc2012DataLoader
 from kktorch.nn.configmod import ConfigModule
+from kktorch.util.image import pil2cv
 
 
 if __name__ == "__main__":
