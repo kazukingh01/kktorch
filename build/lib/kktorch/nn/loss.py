@@ -103,13 +103,15 @@ class SwAVLoss(BaseLoss):
     see: https://arxiv.org/abs/2006.09882
     """
     def __init__(
-        self, temperature: float=0.1, sinkhorn_epsilon=0.05, sinkhorn_repeat: int=3,
+        self, temperature: float=0.1, sinkhorn_epsilon=0.05, 
+        sinkhorn_repeat: int=3, n_global_view: int=2,
         reduction: str='mean', is_check_everytime=False
     ):
         super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
         self.temperature      = temperature
         self.sinkhorn_repeat  = sinkhorn_repeat
         self.sinkhorn_epsilon = sinkhorn_epsilon
+        self.n_global_view    = n_global_view
         self.log_softmax      = torch.nn.functional.log_softmax
     def check(self, input: torch.Tensor, *args):
         assert isinstance(input, torch.Tensor) and len(input.shape) == 3
@@ -125,15 +127,19 @@ class SwAVLoss(BaseLoss):
         """
         tens_zt = torch.einsum("abc->bac", input) # N_Aug, B_Batch, K_cluster
         with torch.no_grad():
-            tens_zs  = tens_zt[:2].clone()
+            tens_zs  = tens_zt[:self.n_global_view].clone()
             tens_qs  = self.sinkhorn(tens_zs)
-            tens_qs1 = tens_qs[0].expand(tens_zt.shape[0] - 1, -1, -1).detach()
-            tens_qs2 = tens_qs[1].expand(tens_zt.shape[0] - 1, -1, -1).detach()
+            tens_qs_list = []
+            for i in range(self.n_global_view):
+                tens_qs_list.append(tens_qs[i].expand(tens_zt.shape[0] - 1, -1, -1).detach())
         tens_pt = self.log_softmax(tens_zt / self.temperature, dim=2)
-        loss1   = (-1 * tens_qs1 * torch.cat([tens_pt[1:2], tens_pt[2:]], dim=0)).sum(dim=2)
-        loss2   = (-1 * tens_qs2 * torch.cat([tens_pt[0:1], tens_pt[2:]], dim=0)).sum(dim=2)
-        loss    = torch.cat([loss1.reshape(-1), loss2.reshape(-1)], dim=0)
-        loss    = loss / (2 + 2 * (tens_zt.shape[0] - 2))
+        losses  = [
+            (-1 * tens_qs_list[i] * torch.cat([
+                tens_pt[[j for j in range(self.n_global_view) if j != i]], tens_pt[self.n_global_view:]
+            ], dim=0)).sum(dim=2) for i in range(self.n_global_view)
+        ]
+        loss = torch.cat([_loss.reshape(-1) for _loss in losses], dim=0)
+        loss = loss / (self.n_global_view * (input.shape[0] - 1))
         return loss
     def sinkhorn(self, tens_zs: torch.Tensor):
         """

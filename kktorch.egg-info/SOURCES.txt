@@ -20,7 +20,6 @@ kktorch/model_zoo/autoencoder/encoder.json
 kktorch/model_zoo/autoencoder/encoder_block.json
 kktorch/model_zoo/autoencoder/vae.json
 kktorch/model_zoo/dino/dino_eff.json
-kktorch/model_zoo/dino/dino_timm_vit.json
 kktorch/model_zoo/dino/dino_vit.json
 kktorch/model_zoo/ffn/README.md
 kktorch/model_zoo/ffn/ffn.json
@@ -42,7 +41,6 @@ kktorch/model_zoo/node/README.md
 kktorch/model_zoo/node/middle_layer.json
 kktorch/model_zoo/node/node.json
 kktorch/model_zoo/node/odst.json
-kktorch/model_zoo/swav/swav.json
 kktorch/model_zoo/swav/swav_vit.json
 kktorch/model_zoo/timm/README.md
 kktorch/model_zoo/timm/timm.json
@@ -78,7 +76,6 @@ tests/train_bert_jp_classify.py
 tests/train_ffn.py
 tests/train_ffn_skip.py
 tests/train_node.py
-tests/train_swav.py
 tests/train_t5_jp_seq2seq.py
 tests/image/autoencoder/normal/README.md
 tests/image/autoencoder/normal/imgrec.png
@@ -95,5 +92,11 @@ tests/image/classification/timm/train.py
 tests/image/classification/vit/README.md
 tests/image/classification/vit/imgattnmap.png
 tests/image/classification/vit/train.py
+tests/image/self-supervised/dino/README.md
+tests/image/self-supervised/dino/imgattnmap_vit.png
+tests/image/self-supervised/dino/knn_eff.png
+tests/image/self-supervised/dino/knn_vit.png
+tests/image/self-supervised/dino/predict_eff.py
+tests/image/self-supervised/dino/predict_vit.py
 tests/image/self-supervised/dino/train_eff.py
 tests/image/self-supervised/dino/train_vit.py

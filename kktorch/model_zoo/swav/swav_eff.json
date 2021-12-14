@@ -1,8 +1,8 @@
 {
     "name": "swav",
     "user_parameters": {
-        "___n_projection": 1024,
-        "___k_clusters": 512,
+        "___n_projection": 64,
+        "___k_clusters": 256,
         "___n_timm_dim": 1280
     },
     "network": [
