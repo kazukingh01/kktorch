@@ -28,14 +28,14 @@ if __name__ == "__main__":
         transforms=tfms.Compose([
             tfms.ToTensor(), tfms.ResizeFixRatio(256, "min"), tfms.RandomCrop(256),
             tfms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
-        ]), is_label_two_class=True, dtype_target=torch.float32, num_workers=4
+        ]), is_label_binary_class=True, dtype_target=torch.float32, num_workers=4
     )
     dataloader_valid = PASCALvoc2012DataLoader(
         train=False, download=True, batch_size=32, shuffle=False,
         transforms=tfms.Compose([
             tfms.ToTensor(), tfms.ResizeFixRatio(256, "min"), tfms.RandomCrop(256),
             tfms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
-        ]), is_label_two_class=True, dtype_target=torch.float32, num_workers=4
+        ]), is_label_binary_class=True, dtype_target=torch.float32, num_workers=4
     )
 
     # trainer

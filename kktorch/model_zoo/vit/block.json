@@ -36,6 +36,13 @@
                             }
                         },
                         {
+                            "class": "BaseModule",
+                            "args": [],
+                            "kwargs": {
+                                "name": "selfattention"
+                            }
+                        },
+                        {
                             "class": "SelectIndexListInput",
                             "args": 0
                         },

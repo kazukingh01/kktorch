@@ -100,29 +100,32 @@ if __name__ == "__main__":
 
     # dataloader. multi crop 2 x 224x224, 4 x 96x96
     dataloader_train = PASCALvoc2012DataLoader(
-        train=True, download=True, batch_size=36, shuffle=True, drop_last=True,
+        train=True, download=True, batch_size=32, shuffle=True, drop_last=True,
         transforms=[
             aug_train(224, scale=(0.4, 1.0),  p_blue=1.0, p_sol=0.0),
+            aug_train(224, scale=(0.4, 1.0),  p_blue=0.5, p_sol=0.1),
             aug_train(224, scale=(0.4, 1.0),  p_blue=0.1, p_sol=0.2),
             aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
             aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
             aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
             aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
+            aug_train( 96, scale=(0.05, 0.4), p_blue=0.5, p_sol=0.0),
         ],
-        num_workers=6
+        num_workers=32
     )
 
     # trainer
     trainer = MyTrainer(
         network,
-        losses_train=DINOLoss(temperature_s=0.1, temperature_t=0.04, update_rate=0.9),
+        losses_train=DINOLoss(temperature_s=0.1, temperature_t=0.04, update_rate=0.9, n_global_view=3),
         losses_train_name="dino",
         optimizer={
             "optimizer": torch.optim.AdamW, 
-            "params": dict(lr=5e-3)
+            "params": dict(lr=1e-3)
         }, 
         dataloader_train=dataloader_train,
-        epoch=50, print_step=100, auto_mixed_precision=True, accumulation_step=1, clip_grad=3.0
+        epoch=100, print_step=100, auto_mixed_precision=True, accumulation_step=1, clip_grad=3.0
     )
     #trainer.reset_parameters("norm")
 

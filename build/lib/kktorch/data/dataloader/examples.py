@@ -109,7 +109,7 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
         self, root: str=ROOTDATADIR, train: bool=True, download: bool=True, 
         transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([
             tfms.ToTensor(),
-        ]), is_label_two_class: bool=False,
+        ]), is_label_binary_class: bool=False,
         dtype_data=torch.float32, dtype_target=torch.long,
         **kwargs
     ):
@@ -189,7 +189,7 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
         df_train = df.loc[df["id"].isin(indexes_train)].copy()
         df_test  = df.loc[df["id"].isin(indexes_test) ].copy()
         self.df  = df_train if train else df_test
-        if is_label_two_class:
+        if is_label_binary_class:
             columns = self.df.columns[df.columns.str.contains("^label_")]
             self.df.loc[:, columns] = self.df.loc[:, columns].replace(0, 1).replace(-1, 0).astype(int)
         dataset  = ImageDataset(

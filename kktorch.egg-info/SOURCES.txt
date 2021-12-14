@@ -75,7 +75,6 @@ kktorch/util/text/__init__.py
 kktorch/util/text/transforms.py
 tests/train_bert_en_classify.py
 tests/train_bert_jp_classify.py
-tests/train_dino.py
 tests/train_ffn.py
 tests/train_ffn_skip.py
 tests/train_node.py
@@ -91,3 +90,9 @@ tests/image/autoencoder/vae/t-sne.png
 tests/image/autoencoder/vae/train.py
 tests/image/classification/mlpmixer/README.md
 tests/image/classification/mlpmixer/train.py
+tests/image/classification/timm/README.md
+tests/image/classification/timm/train.py
+tests/image/classification/vit/README.md
+tests/image/classification/vit/train.py
+tests/image/self-supervised/dino/train_eff.py
+tests/image/self-supervised/dino/train_vit.py

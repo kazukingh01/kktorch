@@ -1,7 +1,6 @@
 import os, datetime, random, copy, time
 from typing import List, Union
 import numpy as np
-from numpy.lib.arraysetops import isin
 
 import torch
 from torch import nn
@@ -12,7 +11,8 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 autocast = torch.cuda.amp.autocast
 
-from kktorch.util.com import check_type, check_type_list, correct_dirpath, convert_1d_array, makedirs
+from kktorch.util.com import check_type_list, correct_dirpath, convert_1d_array, makedirs
+from kktorch.data.dataloader import BaseDataLoader
 from kktorch.util.logger import set_logger
 logger = set_logger(__name__)
 
@@ -48,7 +48,7 @@ class Trainer:
         # training parameter
         epoch: int=1, accumulation_step: int=1, clip_grad: float=0.0,
         # validation parameter
-        valid_step: int=-1, early_stopping_rounds: int=-1, early_stopping_min_iter: int=-1, 
+        valid_step: int=-1, valid_iter: int=1, early_stopping_rounds: int=-1, early_stopping_min_iter: int=-1, 
         move_ave_steps: int=1, early_stopping_i_valid: Union[int, List[int]]=None,
         # others
         outdir: str="./output_"+datetime.datetime.now().strftime("%Y%m%d%H%M%S"), auto_mixed_precision: bool=False, 
@@ -135,6 +135,7 @@ class Trainer:
         self.clip_grad         = clip_grad
         # validation
         self.valid_step              = valid_step
+        self.valid_iter              = valid_iter
         self.early_stopping_rounds   = early_stopping_rounds
         self.early_stopping_min_iter = early_stopping_min_iter
         self.early_stopping_i_valid  = early_stopping_i_valid
@@ -232,6 +233,7 @@ epoch : {self.epoch}
         if isinstance(self.early_stopping_i_valid, int): self.early_stopping_i_valid = [self.early_stopping_i_valid]
         if self.early_stopping_i_valid is not None:
             assert check_type_list(self.early_stopping_i_valid, int)
+        assert isinstance(self.valid_iter, int) and self.valid_iter >= 1
         assert isinstance(self.auto_mixed_precision, bool)
         assert isinstance(self.clip_grad, float) and self.clip_grad >= 0
         assert isinstance(self.adjust_output_size_front, int) and self.adjust_output_size_front >= 0
@@ -426,7 +428,6 @@ epoch : {self.epoch}
                 loss, losses = work(self, input, label, self.processes, self.losses_valid, is_valid=is_valid)
         else:
             loss, losses = work(self, input, label, self.processes, self.losses_train, loss_funcs_weight=self.losses_train_weight, is_valid=is_valid)
-        loss = loss / self.accumulation_step
         return loss, losses
     
     def write_tensor_board(self, name: str, value):
@@ -446,6 +447,7 @@ epoch : {self.epoch}
         if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
             logger.info(f"iter: {self.i_epoch}|{self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
         loss, losses = self.calc_losses(input, label, is_valid=False)
+        loss = loss / self.accumulation_step
         self.scaler.scale(loss).backward()
         if hasattr(self.optimizer, "first_step"):
             # For SUM optimizers. you can NOT use accumulation step.
@@ -476,12 +478,22 @@ epoch : {self.epoch}
             self.save()
             self.save(is_best=True)
 
-    def _valid_step(self, _input, label, i_valid: int=0):
+    def _valid_step(self, _input: List[object], label: List[object], i_valid: int=0):
         self.network.eval()
         with torch.no_grad():
-            # loss calculation
-            loss_valid, losses_valid = self.calc_losses(_input, label, is_valid=True)
-            loss_valid, losses_valid = self.val_to_cpu(loss_valid), self.val_to_cpu(losses_valid)
+            loss_valid, losses_valid, batch_size = 0, None, 0
+            for i_batch in range(len(_input)):
+                # loss calculation
+                _size       = len(_input[i_batch])
+                batch_size += _size
+                _loss_valid, _losses_valid = self.calc_losses(_input[i_batch], label[i_batch], is_valid=True)
+                _loss_valid, _losses_valid = self.val_to_cpu(_loss_valid), self.val_to_cpu(_losses_valid)
+                loss_valid += _loss_valid * _size
+                if losses_valid is None:
+                    losses_valid = [x * _size for x in _losses_valid]
+                else:
+                    losses_valid = [losses_valid[i] + (x * _size) for i, x in enumerate(_losses_valid)]
+            loss_valid, losses_valid = loss_valid / batch_size, [x / batch_size for x in losses_valid]
             if i_valid == 0:
                 _loss_save = loss_valid if self.early_stopping_i_valid is None else np.sum(np.array(losses_valid)[self.early_stopping_i_valid])
                 self.loss_valid_hist[self.iter // self.valid_step % self.move_ave_steps] = _loss_save
@@ -514,6 +526,7 @@ epoch : {self.epoch}
 
     def train(self):
         self.init_training()
+        self.dataloader_valids = [iter(x) if isinstance(x, BaseDataLoader) else x for x in self.dataloader_valids]
         try:
             for i_epoch in range(self.epoch):
                 self.i_epoch = i_epoch + 1
@@ -523,7 +536,11 @@ epoch : {self.epoch}
                     # validation
                     if len(self.dataloader_valids) > 0 and self.valid_step is not None and self.valid_step > 0 and self.iter % self.valid_step == 0:
                         for i_valid, dataloader_valid in enumerate(self.dataloader_valids):
-                            input, label = next(iter(dataloader_valid))
+                            input, label = [], []
+                            for _ in range(self.valid_iter):
+                                _input, _label = next(dataloader_valid)
+                                input.append(_input)
+                                label.append(_label)
                             self._valid_step(input, label, i_valid=i_valid)
         except EarlyStoppingError:
             logger.warning(f'early stopping. iter: {self.i_epoch}|{self.iter}, best_iter: {self.best_params["iter"]}, loss: {self.best_params["loss_valid"]}')

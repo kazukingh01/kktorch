@@ -1,0 +1,40 @@
+{
+    "name": "vit",
+    "user_parameters": {
+        "___n_layer": 12,
+        "___n_dim": 512,
+        "___n_head": 8,
+        "___in_channels": 3,
+        "___dropout_p": 0.0,
+        "___patch_size": 16,
+        "___img_size": 224,
+        "___n_classes": 10
+    },
+    "network": [
+        {
+            "class": "ConfigModule",
+            "args": "vit.json",
+            "kwargs": {
+                "user_parameters": {
+                    "___n_layer": "___n_layer",
+                    "___n_dim": "___n_dim",
+                    "___n_head": "___n_head",
+                    "___in_channels": "___in_channels",
+                    "___dropout_p": "___dropout_p",
+                    "___patch_size": "___patch_size",
+                    "___img_size": "___img_size"
+                }
+            }
+        },
+        {
+            "class": "Linear",
+            "args": ["___n_dim", "___n_classes"],
+            "kwargs": {
+                "bias": false
+            }
+        },
+        {
+            "class": "Sigmoid"
+        }
+    ]
+}

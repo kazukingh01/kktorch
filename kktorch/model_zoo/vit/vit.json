@@ -72,7 +72,8 @@
         {
             "class": "SelectIndexTensorInput",
             "args": 3,
-            "kwargs": {"dim2": 0}
+            "kwargs": {"dim2": 0},
+            "out_features": "___n_dim"
         }
     ]
 }

@@ -156,12 +156,17 @@ class DINOLoss(BaseLoss):
     """
     see: https://arxiv.org/abs/2104.14294
     """
-    def __init__(self, temperature_s: float=0.1, temperature_t: float=0.04, update_rate: float=0.9, reduction: str='mean', is_check_everytime=False):
+    def __init__(
+        self, temperature_s: float=0.1, temperature_t: float=0.04, 
+        update_rate: float=0.9, n_global_view: int=2,
+        reduction: str='mean', is_check_everytime=False
+    ):
         super().__init__(reduction=reduction, is_check_everytime=is_check_everytime)
         self.temperature_s = temperature_s
         self.temperature_t = temperature_t
         self.vec_center    = None
         self.update_rate   = update_rate
+        self.n_global_view = n_global_view
         self.softmax       = torch.nn.functional.softmax
         self.log_softmax   = torch.nn.functional.log_softmax
     def check(self, input: torch.Tensor, target: torch.Tensor):
@@ -183,15 +188,17 @@ class DINOLoss(BaseLoss):
         """
         input  = input.permute(1,0,2) # N_Aug, B_Batch, D_Dimension
         with torch.no_grad():
-            target    = target.detach()[:, :2, :].permute(1,0,2) # N_Aug, B_Batch, D_Dimension
-            output_t  = self.softmax((target - self.vec_center) / self.temperature_t, dim=-1)
-            output_t1 = output_t[0].expand(input.shape[0] - 1, -1, -1)
-            output_t2 = output_t[1].expand(input.shape[0] - 1, -1, -1)
+            target        = target.detach()[:, :self.n_global_view, :].permute(1,0,2) # N_Aug, B_Batch, D_Dimension
+            output_t      = self.softmax((target - self.vec_center) / self.temperature_t, dim=-1)
+            output_t_list = [output_t[i].expand(input.shape[0] - 1, -1, -1) for i in range(self.n_global_view)]
         output_s = self.log_softmax(input / self.temperature_s, dim=-1)
-        loss1    = (-1 * output_t1 * torch.cat([output_s[1:2], output_s[2:]], dim=0)).sum(dim=2)
-        loss2    = (-1 * output_t2 * torch.cat([output_s[0:1], output_s[2:]], dim=0)).sum(dim=2)
-        loss     = torch.cat([loss1.reshape(-1), loss2.reshape(-1)], dim=0)
-        loss     = loss / (2 + 2 * (input.shape[0] - 2))
+        losses   = [
+            (-1 * output_t_list[i] * torch.cat([
+                output_s[[j for j in range(self.n_global_view) if j != i]], output_s[self.n_global_view:]
+            ], dim=0)).sum(dim=2) for i in range(self.n_global_view)
+        ]
+        loss = torch.cat([_loss.reshape(-1) for _loss in losses], dim=0)
+        loss = loss / (self.n_global_view * (input.shape[0] - 1))
         with torch.no_grad():
             self.vec_center = self.vec_center.mul(self.update_rate) + target.mean(dim=(0,1)).mul(1 - self.update_rate)
         return loss
