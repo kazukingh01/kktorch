@@ -354,11 +354,13 @@ epoch : {self.epoch}
     def process_data_train_pre(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return input
     def process_data_train_aft(self, input: Union[torch.Tensor, List[torch.Tensor]]):
+        if isinstance(input, tuple): input = list(input)
         input = [input, ] if isinstance(input, torch.Tensor) else input
         return [torch.zeros(0)] * self.adjust_output_size_front + input + [torch.zeros(0)] * self.adjust_output_size_back
     def process_data_valid_pre(self, input: Union[torch.Tensor, List[torch.Tensor]]):
         return input
     def process_data_valid_aft(self, input: Union[torch.Tensor, List[torch.Tensor]]):
+        if isinstance(input, tuple): input = list(input)
         input = [input, ] if isinstance(input, torch.Tensor) else input
         return [torch.zeros(0)] * self.adjust_output_size_front + input + [torch.zeros(0)] * self.adjust_output_size_back
     def process_label_pre(self, label: Union[torch.Tensor, List[torch.Tensor]], input: Union[torch.Tensor, List[torch.Tensor]]=None):

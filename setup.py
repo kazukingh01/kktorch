@@ -32,6 +32,7 @@ setup(
         'charset-normalizer>=2.0.3',
         'click>=8.0.1',
         'entmax>=1.0',
+        'faiss-cpu>=1.7.1.post3'
         'filelock>=3.0.12',
         'fugashi>=1.1.0',
         'google-auth>=1.33.1',

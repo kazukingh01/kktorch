@@ -19,7 +19,6 @@ kktorch/model_zoo/autoencoder/decoder_block.json
 kktorch/model_zoo/autoencoder/encoder.json
 kktorch/model_zoo/autoencoder/encoder_block.json
 kktorch/model_zoo/autoencoder/vae.json
-kktorch/model_zoo/dino/dino.json.bk
 kktorch/model_zoo/dino/dino_eff.json
 kktorch/model_zoo/dino/dino_timm_vit.json
 kktorch/model_zoo/dino/dino_vit.json
@@ -54,6 +53,7 @@ kktorch/model_zoo/vae/encoder_block.json
 kktorch/model_zoo/vae/vae.json
 kktorch/model_zoo/vit/block.json
 kktorch/model_zoo/vit/vit.json
+kktorch/model_zoo/vit/vit_classification.json
 kktorch/nn/__init__.py
 kktorch/nn/activation.py
 kktorch/nn/configmod.py
@@ -93,6 +93,7 @@ tests/image/classification/mlpmixer/train.py
 tests/image/classification/timm/README.md
 tests/image/classification/timm/train.py
 tests/image/classification/vit/README.md
+tests/image/classification/vit/imgattnmap.png
 tests/image/classification/vit/train.py
 tests/image/self-supervised/dino/train_eff.py
 tests/image/self-supervised/dino/train_vit.py

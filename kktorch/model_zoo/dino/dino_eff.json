@@ -42,7 +42,10 @@
         },
         {
             "class": "Linear",
-            "args": ["___n_dim", "___n_projection"]
+            "args": ["___n_dim", "___n_projection"],
+            "kwargs": {
+                "bias": false
+            }
         }
     ]
 }

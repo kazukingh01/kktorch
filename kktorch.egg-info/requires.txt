@@ -5,7 +5,7 @@ chardet>=4.0.0
 charset-normalizer>=2.0.3
 click>=8.0.1
 entmax>=1.0
-filelock>=3.0.12
+faiss-cpu>=1.7.1.post3filelock>=3.0.12
 fugashi>=1.1.0
 google-auth>=1.33.1
 google-auth-oauthlib>=0.4.4
