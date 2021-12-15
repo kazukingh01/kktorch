@@ -528,7 +528,7 @@ epoch : {self.epoch}
 
     def train(self):
         self.init_training()
-        self.dataloader_valids = [iter(x) if isinstance(x, BaseDataLoader) else x for x in self.dataloader_valids]
+        dataloader_valids = [iter(x) if isinstance(x, BaseDataLoader) else x for x in self.dataloader_valids]
         try:
             for i_epoch in range(self.epoch):
                 self.i_epoch = i_epoch + 1
@@ -536,11 +536,14 @@ epoch : {self.epoch}
                     # train
                     self._train_step(input, label)
                     # validation
-                    if len(self.dataloader_valids) > 0 and self.valid_step is not None and self.valid_step > 0 and self.iter % self.valid_step == 0:
-                        for i_valid, dataloader_valid in enumerate(self.dataloader_valids):
+                    if len(dataloader_valids) > 0 and self.valid_step is not None and self.valid_step > 0 and self.iter % self.valid_step == 0:
+                        for i_valid, dataloader_valid in enumerate(dataloader_valids):
                             input, label = [], []
                             for _ in range(self.valid_iter):
-                                _input, _label = next(dataloader_valid)
+                                try: _input, _label = next(dataloader_valid)
+                                except StopIteration:
+                                    dataloader_valids[i_valid] = iter(self.dataloader_valids[i_valid])
+                                    _input, _label = next(dataloader_valids[i_valid])
                                 input.append(_input)
                                 label.append(_label)
                             self._valid_step(input, label, i_valid=i_valid)

@@ -250,7 +250,7 @@ class ParameterModule(BaseModule):
         else:                           self.forward_output = lambda x, y: eval(self.output_type, {"input": x, "param": y, "torch": torch})
     def extra_repr(self):
         return  f'name={self.name}, dim={self.dim}, init_type={self.init_type}, init_timing={self.init_timing}, ' + \
-                f'requires_grad={self.requires_grad}, dtype={self.dtype}, output_type: {self.output_type}'
+                f'init_eval_str={self.init_eval_str}, requires_grad={self.requires_grad}, dtype={self.dtype}, output_type: {self.output_type}'
     def forward_child(self, input: torch.Tensor):
         if self.is_not_set:
             self.create_parameter(*self.convert_dim(self.dim, input.shape), device=input.device)

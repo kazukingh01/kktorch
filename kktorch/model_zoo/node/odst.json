@@ -77,12 +77,13 @@
         },
         {
             "class": "ParameterModule",
-            "args": "util.create_allpattern(___depth)",
+            "args": 0,
             "kwargs": {
                 "name": "param_select_prob",
                 "init_type": "eval",
                 "init_timing": "before",
                 "output_type": "parallel",
+                "init_eval_str": "util.create_allpattern(___depth)",
                 "requires_grad": false
             }
         },
