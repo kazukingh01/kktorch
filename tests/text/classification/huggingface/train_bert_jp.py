@@ -5,13 +5,9 @@ from kktorch.nn.configmod import ConfigModule
 
 
 if __name__ == "__main__":
-    # config file
-    fjson = "../kktorch/model_zoo/huggingface/bert_jp_classify.json"
-
     # load config file and create network
     network = ConfigModule(
-        fjson,
-        ## You can override the config settings.
+        f"/{kktorch.__path__[0]}/model_zoo/huggingface/bert_jp_classify.json", 
         user_parameters={
             "___n_node": 768,
             "___freeze_layers": [
@@ -32,12 +28,14 @@ if __name__ == "__main__":
 
     # dataloader
     dataloader_train = LivedoorNewsDataLoader(
-        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": network.tokenizer.model_max_length, "truncation": True}, aftprocs=[lambda x, y: [dict(x), y]],
-        root='./data', train=True,  download=True, batch_size=16, shuffle=True, num_workers=0
+        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": network.tokenizer.model_max_length, "truncation": True}, 
+        aftprocs=[lambda x, y: [dict(x), y]],
+        train=True, download=True, batch_size=32, shuffle=True, num_workers=8
     )
     dataloader_valid = LivedoorNewsDataLoader(
-        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": network.tokenizer.model_max_length, "truncation": True}, aftprocs=[lambda x, y: [dict(x), y]],
-        root='./data', train=False, download=True, batch_size=16, shuffle=False, num_workers=0
+        network.tokenizer, tokenizer_params_input={"padding": True, "max_length": network.tokenizer.model_max_length, "truncation": True}, 
+        aftprocs=[lambda x, y: [dict(x), y]],
+        train=False, download=True, batch_size=32, shuffle=False, num_workers=8
     )
     """
     >>> dataloader_train.sample()
@@ -62,17 +60,15 @@ if __name__ == "__main__":
         [1, 1, 1,  ..., 1, 1, 1]])}, tensor([4, 8, 2, 5, 7, 7, 1, 1, 8, 0, 0, 4, 5, 6, 6, 3])]
     """
 
-    # trainer
     trainer = Trainer(
         network,
         losses_train=torch.nn.CrossEntropyLoss(),
         losses_valid=[[torch.nn.CrossEntropyLoss(), kktorch.nn.Accuracy()]],
         losses_train_name="ce",
-        losses_valid_name=[["ce", "acc"]],
-        optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=0.0001)}, 
-        dataloader_train =dataloader_train,
-        dataloader_valids=dataloader_valid,
-        epoch=1000, valid_step=10, print_step=100, auto_mixed_precision=True
+        losses_valid_name=["ce", "acc"], 
+        optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=1e-4)}, 
+        dataloader_train =dataloader_train, dataloader_valids=dataloader_valid,
+        auto_mixed_precision=True, epoch=5, valid_step=200, valid_iter=10, print_step=200, 
     )
 
     # to cuda

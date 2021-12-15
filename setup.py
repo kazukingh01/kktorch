@@ -65,6 +65,7 @@ setup(
         'rsa>=4.7.2',
         'sacremoses>=0.0.45',
         'scikit-learn>=1.0.1',
+        'sentencepiece>=0.1.96',
         'six>=1.16.0',
         'tensorboard>=2.5.0',
         'tensorboard-data-server>=0.6.1',

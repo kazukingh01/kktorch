@@ -7,12 +7,9 @@ from kktorch.util.text.transforms import shift_right_decoder_input, decoder_atte
 
 
 if __name__ == "__main__":
-    # config file
-    fjson = "../kktorch/model_zoo/huggingface/t5_jp_seq2seq.json"
-
     # load config file and create network
     network = ConfigModule(
-        fjson,
+        f"/{kktorch.__path__[0]}/model_zoo/huggingface/t5_jp_seq2seq.json", 
         ## You can override the config settings.
         user_parameters={
             "___n_node": 768,
@@ -42,7 +39,7 @@ if __name__ == "__main__":
                 }, y["input_ids"]
             ],
         ], 
-        root='./data', train=True,  download=True, columns=["body", "title"], batch_size=4, shuffle=True,  num_workers=0
+        train=True, download=True, columns=["body", "title"], batch_size=16, shuffle=True,  num_workers=16
     )
     dataloader_valid = LivedoorNewsDataLoader(
         network.tokenizer, 
@@ -60,20 +57,18 @@ if __name__ == "__main__":
                 }, y["input_ids"]
             ],
         ], 
-        root='./data', train=False, download=True, columns=["body", "title"], batch_size=1, shuffle=False, num_workers=0
+        train=False, download=True, columns=["body", "title"], batch_size=8, shuffle=False, num_workers=16
     )
 
     # trainer
     trainer = Trainer(
         network,
         losses_train=CrossEntropyAcrossLoss(network.huggingface[2].param.shape[0], ignore_index=0),
-        losses_valid=[[CrossEntropyAcrossLoss(network.huggingface[2].param.shape[0], ignore_index=0)]],
-        losses_train_name="ce",
-        losses_valid_name=[["ce"]],
-        optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=1e-5)}, 
-        dataloader_train =dataloader_train,
-        dataloader_valids=dataloader_valid,
-        epoch=100, valid_step=10, print_step=100, accumulation_step=1, auto_mixed_precision=False
+        losses_valid=CrossEntropyAcrossLoss(network.huggingface[2].param.shape[0], ignore_index=0),
+        losses_train_name="ce", losses_valid_name="ce",
+        optimizer={"optimizer": torch.optim.AdamW, "params": dict(lr=1e-4)}, 
+        dataloader_train =dataloader_train, dataloader_valids=dataloader_valid,
+        epoch=5, valid_step=20, valid_iter=10, print_step=100, accumulation_step=1, auto_mixed_precision=False
     )
 
     # to cuda
@@ -144,6 +139,8 @@ if __name__ == "__main__":
     tensor([[    5,  1702,  9142,   794,    24,    44,  2123,   790,     3, 21969,
             375,  2414,  8797,  5082,     8, 15636,  4257,    13,     1]])
     """
-    output = generate()(network, x, bos_token_id=0, eos_token_id=1)
-    print(network.tokenizer.decode(output.tolist()[0]))
-    print(network.tokenizer.decode(y.tolist()[0]))
+    for i in range(10):
+        x, y = dataloader_valid[i]
+        output = generate()(network, x, bos_token_id=0, eos_token_id=1)
+        print("Pred:", network.tokenizer.decode(output.tolist()[0]))
+        print("GT:  ", network.tokenizer.decode(y.tolist()[0]))

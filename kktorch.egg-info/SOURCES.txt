@@ -72,9 +72,6 @@ kktorch/util/image/numpy.py
 kktorch/util/image/transforms.py
 kktorch/util/text/__init__.py
 kktorch/util/text/transforms.py
-tests/train_bert_en_classify.py
-tests/train_bert_jp_classify.py
-tests/train_t5_jp_seq2seq.py
 tests/image/autoencoder/normal/README.md
 tests/image/autoencoder/normal/imgrec.png
 tests/image/autoencoder/normal/t-sne.png
@@ -106,3 +103,5 @@ tests/image/self-supervised/swav/predict_eff.py
 tests/image/self-supervised/swav/predict_vit.py
 tests/image/self-supervised/swav/train_eff.py
 tests/image/self-supervised/swav/train_vit.py
+tests/tabular/node/README.md
+tests/tabular/node/train.py
