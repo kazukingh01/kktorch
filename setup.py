@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='kktorch',
-    version='1.0.1',
+    version='1.0.2',
     description='pytorch',
     long_description=long_description,
     long_description_content_type="text/markdown",

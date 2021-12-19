@@ -13,6 +13,7 @@ __all__ = [
     "DINOLoss",
     "VAE_KLDLoss",
     "SSIMLoss",
+    "DeepSVDDLoss",
 ]
 
 
@@ -287,3 +288,42 @@ class SSIMLoss(BaseLoss):
         loss        = numerator / denominator
         return 1 - loss.mean(axis=-1).mean(axis=-1).mean(axis=-1)
 
+
+class DeepSVDDLoss(BaseLoss):
+    def __init__(
+        self, nu: float=0.1, objective: str="soft_boundary", n_update_C: int=0,
+        is_check_everytime=False
+    ):
+        """
+        Ref: https://github.com/lukasruff/Deep-SVDD-PyTorch/blob/master/src/optim/deepSVDD_trainer.py
+        """
+        assert isinstance(objective, str) and objective in ["soft_boundary", "hard"]
+        assert isinstance(nu, float) and 0.0 <= nu and 1.0 > nu
+        assert isinstance(n_update_C, int) and n_update_C >= 0
+        super().__init__(reduction="ident", is_check_everytime=is_check_everytime)
+        self.nu   = nu
+        self.R    = 0 # radius R initialized with 0 by default. 
+        self.C    = None
+        self.iter = 0
+        self.n_update_C = n_update_C
+        self.is_soft    = True if objective == "soft_boundary" else False
+    def check(self, input: torch.Tensor, *args, **kwargs):
+        assert isinstance(input, torch.Tensor)
+        assert len(input.shape) == 2
+        if self.C is None:
+            with torch.no_grad():
+                self.C = torch.mean(input, dim=0)
+    def forward_child(self, input: torch.Tensor, *args, **kwargs):
+        dist = torch.sum((input - self.C) ** 2, dim=-1)
+        if self.is_soft:
+            with torch.no_grad():
+                self.R = torch.quantile(torch.sqrt(dist), 1 - self.nu)
+                if self.iter < self.n_update_C:
+                    self.C = self.C + self.nu * (torch.mean(input, dim=0) - self.C) # center vector "C" will update little by little.
+        if self.is_soft:
+            scores = dist - (self.R ** 2)
+            loss   = (self.R ** 2) + (1 / self.nu) * torch.mean(torch.max(torch.zeros_like(scores), scores))
+        else:
+            loss = torch.mean(dist)
+        self.iter += 1
+        return loss

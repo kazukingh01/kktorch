@@ -1,0 +1,24 @@
+{
+    "name": "deepsvdd",
+    "user_parameters": {
+        "___in_channels": 1,
+        "___init_dim": 8,
+        "___n_layers": 3,
+        "___z": 64
+    },
+    "network": [
+        {
+            "class": "ConfigModule",
+            "args": "../autoencoder/encoder.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "user_parameters": {
+                    "___in_channels": "___in_channels",
+                    "___init_dim": "___init_dim",
+                    "___n_layers": "___n_layers",
+                    "___z": "___z"
+                }
+            }
+        }
+    ]
+}
