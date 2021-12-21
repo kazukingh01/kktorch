@@ -15,9 +15,10 @@ python train_mnist_ano.py
 # Rsult
 
 ## MNIST All data
-Scatter plots and radius R plots for training with the latent variable dimension set to 2.
+Scatter plots and radius R plots for training with the latent variable dimension set to 2.<br>
 ![](./mnist_train_z.png)
-distance > R * 1.25 samples is here.
+
+distance > R * 1.25 samples is here.<br>
 ![](./mnist_train_anomaly.png)
 
 ## MNIST except anomaly data

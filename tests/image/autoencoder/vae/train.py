@@ -21,7 +21,7 @@ if __name__ == "__main__":
     # network
     dim_z = 8
     network = ConfigModule(
-        f"/{kktorch.__path__[0]}/model_zoo/autoencoder/vae.json", 
+        f"/{kktorch.__path__[0]}/model_zoo/autoencoder/vae_sig.json", 
         user_parameters={
             "___in_channels": 1,
             "___init_dim": 8,

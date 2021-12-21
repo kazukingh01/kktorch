@@ -233,7 +233,7 @@ epoch : {self.epoch}
         if isinstance(self.early_stopping_i_valid, int): self.early_stopping_i_valid = [self.early_stopping_i_valid]
         if self.early_stopping_i_valid is not None:
             assert check_type_list(self.early_stopping_i_valid, int)
-        assert isinstance(self.valid_iter, int) and self.valid_iter >= 1
+        assert isinstance(self.valid_iter, int) and self.valid_iter >= -1
         assert isinstance(self.auto_mixed_precision, bool)
         assert isinstance(self.clip_grad, float) and self.clip_grad >= 0
         assert isinstance(self.adjust_output_size_front, int) and self.adjust_output_size_front >= 0
@@ -539,13 +539,18 @@ epoch : {self.epoch}
                     if len(dataloader_valids) > 0 and self.valid_step is not None and self.valid_step > 0 and self.iter % self.valid_step == 0:
                         for i_valid, dataloader_valid in enumerate(dataloader_valids):
                             input, label = [], []
-                            for _ in range(self.valid_iter):
-                                try: _input, _label = next(dataloader_valid)
-                                except StopIteration:
-                                    dataloader_valids[i_valid] = iter(self.dataloader_valids[i_valid])
-                                    _input, _label = next(dataloader_valids[i_valid])
-                                input.append(_input)
-                                label.append(_label)
+                            if self.valid_iter >= 0:
+                                for _ in range(self.valid_iter):
+                                    try: _input, _label = next(dataloader_valid)
+                                    except StopIteration:
+                                        dataloader_valids[i_valid] = iter(self.dataloader_valids[i_valid])
+                                        _input, _label = next(dataloader_valids[i_valid])
+                                    input.append(_input)
+                                    label.append(_label)
+                            else:
+                                for _input, _label in self.dataloader_valids[i_valid]:
+                                    input.append(_input)
+                                    label.append(_label)
                             self._valid_step(input, label, i_valid=i_valid)
         except EarlyStoppingError:
             logger.warning(f'early stopping. iter: {self.i_epoch}|{self.iter}, best_iter: {self.best_params["iter"]}, loss: {self.best_params["loss_valid"]}')

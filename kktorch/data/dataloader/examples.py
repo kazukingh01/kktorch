@@ -20,10 +20,11 @@ __all__ = [
     "PASCALvoc2012DataLoader",
     "NewsPaperDataLoader",
     "LivedoorNewsDataLoader",
+    "MVTecADDataLoader",
 ]
 
 
-ROOTDATADIR=f"{correct_dirpath(kktorch.__path__[0])}/__data__"
+ROOTDATADIR=f"{correct_dirpath(kktorch.__path__[0])}__data__"
 
 
 def split_train_test(index: int, seed: int=0, percent: float=0.8):
@@ -270,3 +271,62 @@ class LivedoorNewsDataLoader(TextDataLoader):
         self.df  = df_train if train else df_test
         dataset  = DataframeDataset(df_train if train else df_test, columns=columns)
         super().__init__(dataset, dtype_data=torch.long, dtype_target=torch.long, tokenizer=tokenizer, **kwargs)
+
+
+class MVTecADDataLoader(BaseDataLoader):
+    MVTecAD_DEFAULT_MEAN = {
+        "capsule": (0.6540, 0.6668, 0.6968)
+    }
+    MVTecAD_DEFAULT_STD  = {
+        "capsule": (0.2588, 0.2575, 0.2366)
+    }
+    def __init__(
+        self, datatype: str="bottle", root: str=ROOTDATADIR, train: bool=True, download: bool=True, 
+        transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([tfms.ToTensor(),]), 
+        dtype_data=torch.float32, dtype_target=torch.long, **kwargs
+    ):
+        assert isinstance(datatype, str) and datatype in [
+            "bottle", "cable", "capsule", "carpet", "grid", "hazelnut", "leather", "metal_nut", 
+            "pill", "screw", "tile", "toothbrush", "transistor", "wood", "zipper"
+        ]
+        self.dirpath = correct_dirpath(root) + f"MVTecAD/{datatype}/"
+        # download
+        if   datatype == "bottle":     url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937370-1629951468/bottle.tar.xz"
+        elif datatype == "cable":      url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937413-1629951498/cable.tar.xz"
+        elif datatype == "capsule":    url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937454-1629951595/capsule.tar.xz"
+        elif datatype == "carpet":     url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937484-1629951672/carpet.tar.xz"
+        elif datatype == "grid":       url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937487-1629951814/grid.tar.xz"
+        elif datatype == "hazelnut":   url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937545-1629951845/hazelnut.tar.xz"
+        elif datatype == "leather":    url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937607-1629951964/leather.tar.xz"
+        elif datatype == "metal_nut":  url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420937637-1629952063/metal_nut.tar.xz"
+        elif datatype == "pill":       url = "https://www.mydrive.ch/shares/43421/11a215a5749fcfb75e331ddd5f8e43ee/download/420938129-1629953099/pill.tar.xz"
+        elif datatype == "screw":      url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420938130-1629953152/screw.tar.xz"
+        elif datatype == "tile":       url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420938133-1629953189/tile.tar.xz"
+        elif datatype == "toothbrush": url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420938134-1629953256/toothbrush.tar.xz"
+        elif datatype == "transistor": url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420938166-1629953277/transistor.tar.xz"
+        elif datatype == "wood":       url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420938383-1629953354/wood.tar.xz"
+        elif datatype == "zipper":     url = "https://www.mydrive.ch/shares/38536/3830184030e49fe74747669442f0f282/download/420938385-1629953449/zipper.tar.xz"
+        deploy_files(url, self.dirpath, download, extract="tar")
+        # set data infomation
+        df = None
+        if train:
+            df    = pd.DataFrame(get_file_list(self.dirpath + f"{datatype}/train/", regex_list=[r"\.png"]), columns=["filepath"])
+        else:
+            df    = pd.DataFrame(get_file_list(self.dirpath + f"{datatype}/test/",         regex_list=[r"\.png"]), columns=["filepath"])
+            df_gt = pd.DataFrame(get_file_list(self.dirpath + f"{datatype}/ground_truth/", regex_list=[r"\.png"]), columns=["filepath_mask"])
+        df["filename"]   = df["filepath"].apply(lambda x: os.path.basename(x))
+        df["label_name"] = df["filepath"].str.split("/").str[-2]
+        df["label"]      = df["label_name"].map({"good": 0}).fillna(1).astype(int)
+        df["id"]         = df["filename"].str.replace(".png", "", regex=False)
+        if train == False:
+            df_gt["filename_mask"] = df_gt["filepath_mask"].apply(lambda x: os.path.basename(x))
+            df_gt["label_name"]    = df_gt["filepath_mask"].str.split("/").str[-2]
+            df_gt["id"]            = df_gt["filename_mask"].str.replace("_mask.png", "", regex=False)
+            df = pd.merge(df, df_gt, how="left", on=["label_name", "id"])
+        self.df = df
+        # cretate dataset
+        dataset  = ImageDataset(
+            self.df["filepath"].values.tolist(), self.df["label"].values.tolist(), 
+            transforms=transforms
+        )
+        super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)

@@ -1,7 +1,8 @@
 import cv2
+from kktorch.util.com import check_type_list
 import numpy as np
 from PIL import Image
-import torchvision
+from typing import List
 
 
 __all__ = [
@@ -9,6 +10,7 @@ __all__ = [
     "pil2cv",
     "cv2pil",
     "gray_to_rgb",
+    "concat_images",
 ]
 
 
@@ -59,3 +61,30 @@ def cv2pil(img: np.ndarray):
 def gray_to_rgb(img: np.ndarray):
     return np.concatenate([img.reshape(img.shape[0], img.shape[1], 1).copy() for _ in range(3)], axis=2)
 
+def concat_images(imgs: List[np.ndarray], shape: (int, int), resize: (int, int)=None):
+    """
+    Params::
+        imgs: List of imgs
+        shape: height, width
+        resize: width, height
+    """
+    assert check_type_list(imgs, np.ndarray)
+    assert isinstance(shape, list) or isinstance(shape, tuple)
+    shape = list(shape)
+    assert len(shape) == 2 and check_type_list(shape, int)
+    assert len(imgs) >= (shape[0] * shape[1])
+    if resize is not None:
+        assert isinstance(resize, list) or isinstance(resize, tuple)
+        resize = list(resize)
+        assert check_type_list(resize, int)
+    img = None
+    for i in range(shape[0]):
+        imgwk = None
+        for j in range(shape[1]):
+            imgwkwk = imgs[i * shape[1] + j]
+            if resize is not None: imgwkwk = cv2.resize(imgwkwk, resize)
+            if imgwk is None: imgwk = imgwkwk
+            else: imgwk = np.concatenate([imgwk, imgwkwk], axis=1)
+        if img is None: img = imgwk
+        else: img = np.concatenate([img, imgwk], axis=0)
+    return img

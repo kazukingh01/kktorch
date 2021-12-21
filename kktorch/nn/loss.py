@@ -245,9 +245,11 @@ class SSIMLoss(BaseLoss):
         self.sigma        = sigma
         self.padding      = padding
         self.gauss_window = self.create_window(self.window_size, n_channel=self.n_channel, sigma=self.sigma)
-        L       = 1
+        self.norm         = torch.nn.Hardtanh(0, 1) 
+        L       = 1 # If 0 ~ 255 value range, L=255. If 0 ~ 1   value range, L=1.
         self.C1 = (0.01 * L) ** 2
         self.C2 = (0.03 * L) ** 2
+        
     @classmethod
     def gaussian(cls, window_size: int, sigma: float=1.5):
         from math import exp
@@ -263,18 +265,14 @@ class SSIMLoss(BaseLoss):
         assert isinstance(input, torch.Tensor)  and len(input.shape)  == 4
         assert isinstance(target, torch.Tensor) and len(target.shape) == 4
         assert input.shape == target.shape
+        assert target.min().item() >= 0.0 and target.max().item() <= 1.0
         if self.is_check:
             self.gauss_window = self.gauss_window.to(input.device)
-            # If 0 ~ 255 value range, L=255.
-            # If 0 ~ 1   value range, L=1.
-            if target.max().item() > 128:
-                L       = 255
-                self.C1 = (0.01 * L) ** 2
-                self.C2 = (0.03 * L) ** 2
     def forward_child(self, input: torch.Tensor, target: torch.Tensor):
         """
         SSIM value is 0 ~ 1. value 1 means same image.
         """
+        input     = self.norm(input)
         mu_input  = F.conv2d(input,  self.gauss_window, padding=self.padding, groups=self.n_channel)
         mu_target = F.conv2d(target, self.gauss_window, padding=self.padding, groups=self.n_channel)
         mu_input_sq  = mu_input. pow(2)

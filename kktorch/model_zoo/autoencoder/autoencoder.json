@@ -39,9 +39,6 @@
                     "___alpha": "___alpha"
                 }
             }
-        },
-        {
-            "class": "Sigmoid"
         }
     ]
 }

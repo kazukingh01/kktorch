@@ -1,5 +1,5 @@
 {
-    "name": "vae",
+    "name": "autoencoder",
     "user_parameters": {
         "___in_channels": 1,
         "___init_dim": 8,
@@ -19,16 +19,12 @@
                     "___in_channels": "___in_channels",
                     "___init_dim": "___init_dim",
                     "___n_layers": "___n_layers_en",
-                    "___z": "___z * 2"
+                    "___z": "___z"
                 }
             }
         },
         {
             "class": "MiddleSaveOutput"
-        },
-        {
-            "class": "EvalModule",
-            "args": "input[:, :___z] + torch.exp(input[:, ___z:] * 0.5) * torch.normal(mean=0, std=torch.ones(input.shape[0], ___z )).to(input.device)"
         },
         {
             "class": "ConfigModule",
@@ -43,6 +39,9 @@
                     "___alpha": "___alpha"
                 }
             }
+        },
+        {
+            "class": "Sigmoid"
         }
     ]
 }

@@ -84,6 +84,16 @@ class ImageDataset(Dataset):
         elif img_type == "pil":
             img = Image.open(path)
         return img
+    def calc_mean_and_std(self):
+        img = self.get_image(0, img_type="cv2").astype(float) / len(self)
+        H, W, _ = img.shape
+        for i in range(1, len(self)):
+            imgwk = self.get_image(i, img_type="cv2")
+            if (H, W) != imgwk.shape[:2]:
+                imgwk = cv2.resize(imgwk, (W, H))
+            img += imgwk.astype(float) / len(self)
+        img = img.transpose(2,0,1).reshape(3, -1) / 255.
+        return img.mean(-1).tolist(), img.std(-1).tolist()
 
 
 class DataframeDataset(Dataset):

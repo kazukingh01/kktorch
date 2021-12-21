@@ -20,7 +20,7 @@ class MyTrainer(Trainer):
 if __name__ == "__main__":
     # network
     network = ConfigModule(
-        f"/{kktorch.__path__[0]}/model_zoo/autoencoder/autoencoder.json", 
+        f"/{kktorch.__path__[0]}/model_zoo/autoencoder/autoencoder_sig.json", 
         user_parameters={
             "___in_channels": 1,
             "___init_dim": 8,
