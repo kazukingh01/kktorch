@@ -18,22 +18,28 @@ https://tensorboard.dev/experiment/Hg9fvXbRQDCj9NSrPO0QAQ/
 Left: GT, Center: Prediction, Right: Difference( GT - Prediction )
 
 - SSIM
+
 ![](./rec_diff_ssim_test.png)
 
 - MSE without Normalization
+
 ![](./rec_diff_mse_test.png)
 
 - MSE with Normalization
+
 ![](./rec_diff_msenorm_test.png)
 
 # Gray scale pixel value Histgrum
 - SSIM
+
 ![](./hist_ssim.png)
 
 - MSE without Normalization
+
 ![](./hist_mse.png)
 
 - MSE with Normalization
+
 ![](./hist_msenorm.png)
 
 # Result
