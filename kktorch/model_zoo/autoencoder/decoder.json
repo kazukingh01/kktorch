@@ -21,6 +21,10 @@
             "out_features": "__before // (___init_size ** 2)"
         },
         {
+            "class": "BatchNorm2d",
+            "args": ["__before"]
+        },
+        {
             "class": "RepeatModule",
             "args": "decoder_block.json",
             "kwargs": {

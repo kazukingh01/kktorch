@@ -112,7 +112,7 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
             tfms.ToTensor(),
         ]), is_label_binary_class: bool=False,
         dtype_data=torch.float32, dtype_target=torch.long,
-        **kwargs
+        is_return_input_as_label: bool=False, **kwargs
     ):
         """
         see: http://host.robots.ox.ac.uk/pascal/VOC/voc2012/index.html
@@ -196,8 +196,9 @@ class PASCALvoc2012DataLoader(BaseDataLoader):
         dataset  = ImageDataset(
             self.df["filepath"].values.tolist(), 
             self.df.loc[:, self.df.columns[self.df.columns.str.contains("^label_")].tolist()].astype(int).values.tolist(),
-            transforms=transforms
+            transforms=transforms, is_return_input_as_label=is_return_input_as_label
         )
+        if is_return_input_as_label: dtype_target = dtype_data
         super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)
 
 
@@ -283,7 +284,7 @@ class MVTecADDataLoader(BaseDataLoader):
     def __init__(
         self, datatype: str="bottle", root: str=ROOTDATADIR, train: bool=True, download: bool=True, 
         transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([tfms.ToTensor(),]), 
-        dtype_data=torch.float32, dtype_target=torch.long, **kwargs
+        dtype_data=torch.float32, dtype_target=torch.long, is_return_input_as_label: bool=False, **kwargs
     ):
         assert isinstance(datatype, str) and datatype in [
             "bottle", "cable", "capsule", "carpet", "grid", "hazelnut", "leather", "metal_nut", 
@@ -327,6 +328,7 @@ class MVTecADDataLoader(BaseDataLoader):
         # cretate dataset
         dataset  = ImageDataset(
             self.df["filepath"].values.tolist(), self.df["label"].values.tolist(), 
-            transforms=transforms
+            transforms=transforms, is_return_input_as_label=is_return_input_as_label
         )
+        if is_return_input_as_label: dtype_target = dtype_data
         super().__init__(dataset, dtype_data=dtype_data, dtype_target=dtype_target, **kwargs)

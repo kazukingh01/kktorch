@@ -18,7 +18,8 @@ __all__ = [
 class ImageDataset(Dataset):
     def __init__(
         self, image_paths: List[str], labels: List[object],
-        transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([tfms.ToTensor(),])
+        transforms: Union[tfms.Compose, List[tfms.Compose]]=tfms.Compose([tfms.ToTensor(),]),
+        is_return_input_as_label: bool=False,
     ):
         super().__init__()
         """
@@ -46,6 +47,7 @@ class ImageDataset(Dataset):
         self.transforms   = [transforms] if isinstance(transforms, tfms.Compose) else transforms
         self.concat       = (lambda x: x) if len(self.transforms) == 1 else self.concat_same_resolution
         self.is_check     = True
+        self.is_return_input_as_label = is_return_input_as_label
         self.dict_indexes = {}
     def __len__(self):
         return self.len
@@ -55,7 +57,10 @@ class ImageDataset(Dataset):
         imgs = []
         for procs in self.transforms: imgs.append(procs(img))
         imgs   = self.concat(imgs)
-        labels = self.labels[index]
+        if self.is_return_input_as_label:
+            labels = imgs[0]
+        else:
+            labels = self.labels[index]
         return (*imgs, labels)
     def concat_same_resolution(self, input: List[torch.Tensor]):
         """

@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 
 __all__ = [
+    "BaseLoss",
     "IdentityLoss",
     "Accuracy",
     "CrossEntropyAcrossLoss",
@@ -325,3 +326,39 @@ class DeepSVDDLoss(BaseLoss):
             loss = torch.mean(dist)
         self.iter += 1
         return loss
+
+
+class GANDiscriminatorLoss(BaseLoss):
+    def __init__(self, discriminator: torch.nn.Module, reduction: str='mean', is_check_everytime=False):
+        assert isinstance(discriminator, torch.nn.Module)
+        super().__init__(reduction="ident", is_check_everytime=is_check_everytime)
+        self.discriminator = discriminator
+        self.loss_func     = torch.nn.BCELoss(reduction=reduction)
+    def check(self, input: torch.Tensor, target: torch.Tensor):
+        assert isinstance(input, torch.Tensor)
+        assert isinstance(target, torch.Tensor)
+        assert input.shape == target.shape
+    def forward_child(self, input: torch.Tensor, target: torch.Tensor):
+        """
+        Params::
+            input: Generate fake image
+            target: real image
+        """
+        output_r = self.discriminator(target)
+        loss_r   = self.loss_func(output_r, torch.ones_like(output_r).to(output_r.device))
+        output_f = self.discriminator(input.detach())
+        loss_f   = self.loss_func(output_f, torch.zeros_like(output_f).to(output_f.device))
+        return loss_r + loss_f
+
+
+class GANGeneratorLoss(BaseLoss):
+    def __init__(self, reduction: str='mean', is_check_everytime=False):
+        super().__init__(reduction="ident", is_check_everytime=is_check_everytime)
+        self.loss_func = torch.nn.BCELoss(reduction=reduction)
+    def check(self, input: torch.Tensor, *args, **kwargs):
+        assert isinstance(input, torch.Tensor)
+        assert len(input.shape) <= 2
+        if len(input.shape) == 2:
+            assert input.shape[1] == 1
+    def forward_child(self, input: torch.Tensor, *args, **kwargs):
+        return self.loss_func(input, torch.ones_like(input).to(input.device))

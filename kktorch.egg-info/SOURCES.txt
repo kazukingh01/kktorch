@@ -37,11 +37,6 @@ kktorch/model_zoo/node/odst.json
 kktorch/model_zoo/swav/swav_eff.json
 kktorch/model_zoo/swav/swav_vit.json
 kktorch/model_zoo/timm/timm.json
-kktorch/model_zoo/vae/decoder.json
-kktorch/model_zoo/vae/decoder_block.json
-kktorch/model_zoo/vae/encoder.json
-kktorch/model_zoo/vae/encoder_block.json
-kktorch/model_zoo/vae/vae.json
 kktorch/model_zoo/vit/block.json
 kktorch/model_zoo/vit/vit.json
 kktorch/model_zoo/vit/vit_classification.json

@@ -32,6 +32,8 @@ class BaseDataLoader(DataLoader):
         self.dtype_target = dtype_target
         if kwargs.get("collate_fn") is None: kwargs["collate_fn"] = self.collate_fn
         if kwargs.get("pin_memory") is None: kwargs["pin_memory"] = True
+        if kwargs.get("batch_size") is not None and isinstance(kwargs.get("batch_size"), int) and kwargs.get("batch_size") <= 0:
+            kwargs["batch_size"] = len(dataset)
         super().__init__(dataset, **kwargs)
         self.is_check  = True
         self.procs_to_tensor_data = []

@@ -1,0 +1,31 @@
+{
+    "name": "generator",
+    "user_parameters": {
+        "___noize_dim": 2,
+        "___in_channels": 1,
+        "___init_dim": 8,
+        "___n_layers": 3,
+        "___init_size": 2,
+        "___alpha": 2
+    },
+    "network": [
+        {
+            "class": "EvalModule",
+            "args": "torch.normal(mean=0, std=torch.ones(input.shape[0], ___noize_dim)).to(input.device)"
+        },
+        {
+            "class": "ConfigModule",
+            "args": "../autoencoder/decoder.json",
+            "kwargs": {
+                "dir_base_path": "__dirpath",
+                "user_parameters": {
+                    "___in_channels": "___in_channels",
+                    "___n_layers": "___n_layers",
+                    "___z": "___noize_dim",
+                    "___init_size": "___init_size",
+                    "___alpha": "___alpha"
+                }
+            }
+        }
+    ]
+}

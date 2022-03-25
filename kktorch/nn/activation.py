@@ -6,11 +6,13 @@ import entmax
 __all__ = [
     "Entmax15",
     "Sparsemax",
+    "EntmaxBisect",
     "Entmoid15",
-
+    "EntmoidAlpha",
 ]
 Entmax15  = entmax.Entmax15
 Sparsemax = entmax.Sparsemax
+EntmaxBisect = entmax.EntmaxBisect
 
 
 class Entmoid15(Entmax15):
@@ -36,4 +38,31 @@ class Entmoid15(Entmax15):
         output = input.reshape(-1, *input.shape[1:], 1)
         output = torch.einsum(self.einsum, output, self.param)
         output = super().forward(output)
+        return self.forward_output(output)
+
+
+class EntmoidAlpha(EntmaxBisect):
+    def __init__(self, alpha: float=1.5, dtype=torch.float32):
+        super().__init__(alpha=alpha)
+        self.alpha    = alpha
+        self.einsum   = ""
+        self.is_check = True
+        self.param    = None
+        self.dtype    = dtype
+        self.forward_output = lambda x: x
+    def forward(self, input: torch.Tensor):
+        if self.is_check:
+            base_str    = list("abcdefghijk")
+            n_dim       = len(input.shape) + 1
+            assert n_dim >= 2 and n_dim < 6
+            if   n_dim == 2: self.forward_output = lambda x: x[:, 0]
+            elif n_dim == 3: self.forward_output = lambda x: x[:, :, 0]
+            elif n_dim == 4: self.forward_output = lambda x: x[:, :, :, 0]
+            elif n_dim == 5: self.forward_output = lambda x: x[:, :, :, :, 0]
+            self.einsum = "".join(base_str[:n_dim]) + "," + "".join(base_str[n_dim-1:n_dim+1]) + "->" + "".join(base_str[:n_dim-1]) + base_str[n_dim]
+            self.param  = torch.Tensor([[1,0]]).to(input.device).to(self.dtype)
+            self.is_check = False
+        output = input.reshape(-1, *input.shape[1:], 1)
+        output = torch.einsum(self.einsum, output, self.param)
+        output = super().forward(output, self.alpha)
         return self.forward_output(output)

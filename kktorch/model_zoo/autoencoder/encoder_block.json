@@ -44,7 +44,7 @@
                             "args": ["in_features * 2"]
                         },
                         {
-                            "class": "ReLU"
+                            "class": "LeakyReLU"
                         },
                         {
                             "class": "Conv2d",
@@ -61,7 +61,7 @@
                             "args": ["in_features * 2"]
                         },
                         {
-                            "class": "ReLU"
+                            "class": "LeakyReLU"
                         }
                     ]
                 }
@@ -96,7 +96,7 @@
                             "args": ["in_features * 2"]
                         },
                         {
-                            "class": "ReLU"
+                            "class": "LeakyReLU"
                         },
                         {
                             "class": "Conv2d",
@@ -113,7 +113,7 @@
                             "args": ["in_features * 2"]
                         },
                         {
-                            "class": "ReLU"
+                            "class": "LeakyReLU"
                         }
                     ]
                 }

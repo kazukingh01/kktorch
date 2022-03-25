@@ -173,6 +173,7 @@ epoch : {self.epoch}
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark     = True # If true, Faster processing. see: https://qiita.com/sugulu_Ogawa_ISID/items/62f5f7adee083d96a587
+        torch.autograd.set_detect_anomaly(True)
         logger.info('Set random seeds')
     
     def setup_optimizer(self):
@@ -216,14 +217,16 @@ epoch : {self.epoch}
                 assert isinstance(self.scheduler, _LRScheduler)
 
     def check_init(self):
-        assert check_type_list(self.losses_train, _Loss)
+        assert check_type_list(self.losses_train, _Loss) or check_type_list(self.losses_train, [list, _Loss], _Loss)
         assert check_type_list(self.losses_valid, _Loss) or check_type_list(self.losses_valid, [list, _Loss], _Loss)
         if isinstance(self.losses_train_weight, list):
             assert check_type_list(self.losses_train_weight, float)
             assert len(self.losses_train_weight) == len(self.losses_train)
         else:
             assert isinstance(self.losses_train_weight, float)
-        if len(self.losses_train_name) > 0: assert len(self.losses_train_name  ) == len(self.losses_train)
+        if len(self.losses_train_name) > 0:
+            assert check_type_list(self.losses_train_name, str)
+            assert len(convert_1d_array(self.losses_train_name)) == len(convert_1d_array(self.losses_train))
         if len(self.losses_valid_name) > 0:
             assert check_type_list(self.losses_valid_name, str)
             assert len(convert_1d_array(self.losses_valid_name)) == len(convert_1d_array(self.losses_valid))
@@ -437,34 +440,26 @@ epoch : {self.epoch}
             value = value.detach().to("cpu").item()
         self.writer.add_scalar(name, value, global_step=self.iter)
     
-    def preproc_update_weight(self): pass
-    def aftproc_update_weight(self): pass
+    def preproc_update_weight(self, *args, **kwargs): pass
+    def aftproc_update_weight(self, *args, **kwargs): pass
     
     def _train_step(self, input: Union[torch.Tensor, List[torch.Tensor]], label: Union[torch.Tensor, List[torch.Tensor]]):
         self.iter += 1
         self.network.train() # train() and eval() need to be distinguished when Dropout Layer is present
         if (self.iter - 1) % self.accumulation_step == 0:
             self.network.zero_grad()
-            self.preproc_update_weight()
+            self.preproc_update_weight(input, label)
         if self.print_step > 0 and (self.iter - 1) % self.print_step == 0:
             logger.info(f"iter: {self.i_epoch}|{self.iter}.\nSample input: \n{input}\nSample input shape: \n{input.shape if isinstance(input, torch.Tensor) else ''}\nSample input label: \n{label}")
         loss, losses = self.calc_losses(input, label, is_valid=False)
         loss = loss / self.accumulation_step
         self.scaler.scale(loss).backward()
-        if hasattr(self.optimizer, "first_step"):
-            # For SUM optimizers. you can NOT use accumulation step.
-            self.accumulation_step = 1
-            self.optimizer.first_step(zero_grad=True)
-            loss, losses = self.calc_losses(input, label, is_valid=False)
-            self.scaler.scale(loss).backward()
-            self.optimizer.second_step(zero_grad=True)
-        else:
-            if self.iter % self.accumulation_step == 0:
-                if self.accumulation_step > 1: logger.info("optimizer step with accumulation.")
-                if self.clip_grad > 0: torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.clip_grad)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.aftproc_update_weight()
+        if self.iter % self.accumulation_step == 0:
+            if self.accumulation_step > 1: logger.info("optimizer step with accumulation.")
+            if self.clip_grad > 0: torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.clip_grad)
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.aftproc_update_weight(input, label)
         if self.scheduler is not None: self.scheduler.step()
         loss, losses = self.val_to_cpu(loss), self.val_to_cpu(losses)
         logger.info(f'iter: {self.i_epoch}|{self.iter}, train: {loss}, losses: {losses}, time: {(time.perf_counter() - self.time_iter)}, lr: {"No schedule." if self.scheduler is None else self.scheduler.get_last_lr()[0]}')
